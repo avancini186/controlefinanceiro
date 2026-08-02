@@ -1,5 +1,5 @@
 -- Initial Database Schema for Financial Manager
--- Migration: 20260802000001_initial_schema.sql
+-- Migration: 20260802_initial_schema.sql
 
 -- 1. Categorias de Receitas e Despesas
 CREATE TABLE IF NOT EXISTS public.categorias (
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS public.transacoes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Enable Row Level Security (RLS)
+-- Enable Row Level Security (RLS) and grant open access for public API
 ALTER TABLE public.categorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categorias_orcamento ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contas ENABLE ROW LEVEL SECURITY;
@@ -75,24 +75,9 @@ ALTER TABLE public.cartoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grupos_parcelamento ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transacoes ENABLE ROW LEVEL SECURITY;
 
-DO $$ 
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'categorias' AND policyname = 'Allow public read and write on categorias') THEN
-        CREATE POLICY "Allow public read and write on categorias" ON public.categorias FOR ALL USING (true) WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'categorias_orcamento' AND policyname = 'Allow public read and write on categorias_orcamento') THEN
-        CREATE POLICY "Allow public read and write on categorias_orcamento" ON public.categorias_orcamento FOR ALL USING (true) WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'contas' AND policyname = 'Allow public read and write on contas') THEN
-        CREATE POLICY "Allow public read and write on contas" ON public.contas FOR ALL USING (true) WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'cartoes' AND policyname = 'Allow public read and write on cartoes') THEN
-        CREATE POLICY "Allow public read and write on cartoes" ON public.cartoes FOR ALL USING (true) WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'grupos_parcelamento' AND policyname = 'Allow public read and write on grupos_parcelamento') THEN
-        CREATE POLICY "Allow public read and write on grupos_parcelamento" ON public.grupos_parcelamento FOR ALL USING (true) WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'transacoes' AND policyname = 'Allow public read and write on transacoes') THEN
-        CREATE POLICY "Allow public read and write on transacoes" ON public.transacoes FOR ALL USING (true) WITH CHECK (true);
-    END IF;
-END $$;
+CREATE POLICY "Allow public read and write on categorias" ON public.categorias FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write on categorias_orcamento" ON public.categorias_orcamento FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write on contas" ON public.contas FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write on cartoes" ON public.cartoes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write on grupos_parcelamento" ON public.grupos_parcelamento FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write on transacoes" ON public.transacoes FOR ALL USING (true) WITH CHECK (true);
