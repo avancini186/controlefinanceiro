@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFinancial } from '../../context/FinancialContext';
-import { FinancialService } from '../../services/financialService';
+import { AccountService } from '../../services/financial';
 import type { Account } from '../../types/database';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -25,13 +25,13 @@ export const AccountsView: React.FC = () => {
   );
 
   const handleSave = async (data: Omit<Account, 'id'> & { id?: string }) => {
-    await FinancialService.saveAccount(data);
+    await AccountService.saveAccount(data);
     await refreshData();
   };
 
   const handleDeleteConfirm = async () => {
     if (deletingItem) {
-      await FinancialService.deleteAccount(deletingItem.id);
+      await AccountService.deleteAccount(deletingItem.id);
       setDeletingItem(null);
       await refreshData();
     }

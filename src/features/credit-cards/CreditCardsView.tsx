@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFinancial } from '../../context/FinancialContext';
-import { FinancialService } from '../../services/financialService';
+import { CreditCardService } from '../../services/financial';
 import type { CreditCard } from '../../types/database';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -25,13 +25,13 @@ export const CreditCardsView: React.FC = () => {
   );
 
   const handleSave = async (data: Omit<CreditCard, 'id'> & { id?: string }) => {
-    await FinancialService.saveCreditCard(data);
+    await CreditCardService.saveCreditCard(data);
     await refreshData();
   };
 
   const handleDeleteConfirm = async () => {
     if (deletingItem) {
-      await FinancialService.deleteCreditCard(deletingItem.id);
+      await CreditCardService.deleteCreditCard(deletingItem.id);
       setDeletingItem(null);
       await refreshData();
     }

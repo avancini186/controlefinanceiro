@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFinancial } from '../../context/FinancialContext';
-import { FinancialService } from '../../services/financialService';
+import { CategoryService } from '../../services/financial';
 import type { Category } from '../../types/database';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -28,13 +28,13 @@ export const CategoriesView: React.FC = () => {
   });
 
   const handleSave = async (categoryData: Omit<Category, 'id'> & { id?: string }) => {
-    await FinancialService.saveCategory(categoryData);
+    await CategoryService.saveCategory(categoryData);
     await refreshData();
   };
 
   const handleDeleteConfirm = async () => {
     if (deletingCategory) {
-      await FinancialService.deleteCategory(deletingCategory.id);
+      await CategoryService.deleteCategory(deletingCategory.id);
       setDeletingCategory(null);
       await refreshData();
     }

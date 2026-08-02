@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFinancial } from '../../context/FinancialContext';
-import { FinancialService } from '../../services/financialService';
+import { BudgetService } from '../../services/financial';
 import type { BudgetCategory } from '../../types/database';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -23,13 +23,13 @@ export const BudgetCategoriesView: React.FC = () => {
   );
 
   const handleSave = async (data: Omit<BudgetCategory, 'id'> & { id?: string }) => {
-    await FinancialService.saveBudgetCategory(data);
+    await BudgetService.saveBudgetCategory(data);
     await refreshData();
   };
 
   const handleDeleteConfirm = async () => {
     if (deletingItem) {
-      await FinancialService.deleteBudgetCategory(deletingItem.id);
+      await BudgetService.deleteBudgetCategory(deletingItem.id);
       setDeletingItem(null);
       await refreshData();
     }

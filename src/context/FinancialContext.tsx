@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { FinancialService } from '../services/financialService';
+import { 
+  CategoryService, 
+  BudgetService, 
+  AccountService, 
+  CreditCardService, 
+  TransactionService, 
+  BalanceService 
+} from '../services/financial';
 import type { 
   Category, 
   BudgetCategory, 
@@ -33,11 +40,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsLoading(true);
     try {
       const [cats, bCats, accs, crds, txs] = await Promise.all([
-        FinancialService.getCategories(),
-        FinancialService.getBudgetCategories(),
-        FinancialService.getAccounts(),
-        FinancialService.getCreditCards(),
-        FinancialService.getTransactions(),
+        CategoryService.getCategories(),
+        BudgetService.getBudgetCategories(),
+        AccountService.getAccounts(),
+        CreditCardService.getCreditCards(),
+        TransactionService.getTransactions(),
       ]);
       setCategories(cats);
       setBudgetCategories(bCats);
@@ -52,7 +59,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const resetToSeed = async () => {
-    await FinancialService.resetSeedData();
+    await BalanceService.resetSeedData();
     await refreshData();
   };
 

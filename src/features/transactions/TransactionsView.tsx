@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFinancial } from '../../context/FinancialContext';
-import { FinancialService } from '../../services/financialService';
+import { TransactionService, InstallmentService } from '../../services/financial';
 import type { TransactionWithRelations } from '../../types/database';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -85,7 +85,7 @@ export const TransactionsView: React.FC = () => {
 
   const handleDeleteSingleConfirm = async () => {
     if (deletingTx) {
-      await FinancialService.deleteTransaction(deletingTx.id);
+      await TransactionService.deleteTransaction(deletingTx.id);
       setDeletingTx(null);
       setShowInstallmentDeleteModal(false);
       await refreshData();
@@ -94,7 +94,7 @@ export const TransactionsView: React.FC = () => {
 
   const handleDeleteEntireGroupConfirm = async () => {
     if (deletingTx && deletingTx.installment_group_id) {
-      await FinancialService.deleteInstallmentGroup(deletingTx.installment_group_id);
+      await InstallmentService.deleteInstallmentGroup(deletingTx.installment_group_id);
       setDeletingTx(null);
       setShowInstallmentDeleteModal(false);
       await refreshData();
