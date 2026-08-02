@@ -1,4 +1,5 @@
--- Migration: 20260802144500_split_transactions.sql
+-- Split Transactions Migration
+-- Migration: 20260802_split_transactions.sql
 
 CREATE TABLE IF NOT EXISTS public.transacoes_splits (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
