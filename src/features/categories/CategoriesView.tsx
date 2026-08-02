@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useFinancial } from '../../context/FinancialContext';
 import { CategoryService } from '../../services/financial';
-import type { Category } from '../../types/database';
+import { TransactionType, type Category } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Table } from '../../components/ui/Table';
@@ -14,7 +14,7 @@ import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
 export const CategoriesView: React.FC = () => {
   const { categories, refreshData } = useFinancial();
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | TransactionType>('all');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -58,8 +58,8 @@ export const CategoriesView: React.FC = () => {
     {
       header: 'Tipo',
       cell: (cat: Category) => (
-        <Badge variant={cat.type === 'income' ? 'emerald' : 'rose'}>
-          {cat.type === 'income' ? 'Receita' : 'Despesa'}
+        <Badge variant={cat.type === TransactionType.INCOME ? 'emerald' : 'rose'}>
+          {cat.type === TransactionType.INCOME ? 'Receita' : 'Despesa'}
         </Badge>
       ),
     },
@@ -124,17 +124,17 @@ export const CategoriesView: React.FC = () => {
               Todas
             </button>
             <button
-              onClick={() => setTypeFilter('income')}
+              onClick={() => setTypeFilter(TransactionType.INCOME)}
               className={`px-3 py-1.5 rounded-md transition-colors ${
-                typeFilter === 'income' ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'text-slate-600'
+                typeFilter === TransactionType.INCOME ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'text-slate-600'
               }`}
             >
               Receitas
             </button>
             <button
-              onClick={() => setTypeFilter('expense')}
+              onClick={() => setTypeFilter(TransactionType.EXPENSE)}
               className={`px-3 py-1.5 rounded-md transition-colors ${
-                typeFilter === 'expense' ? 'bg-white text-rose-700 shadow-xs font-semibold' : 'text-slate-600'
+                typeFilter === TransactionType.EXPENSE ? 'bg-white text-rose-700 shadow-xs font-semibold' : 'text-slate-600'
               }`}
             >
               Despesas

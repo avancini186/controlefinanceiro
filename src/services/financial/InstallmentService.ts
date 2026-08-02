@@ -1,15 +1,7 @@
 import { DataService } from '../dataService';
-import type { InstallmentGroup, Transaction } from '../../types/database';
+import { TransactionType, type InstallmentGroup, type Transaction, type CreateInstallmentParams } from '../../types';
 
-export interface CreateInstallmentParams {
-  description: string;
-  total_amount: number;
-  installments_count: number;
-  first_date: string;
-  category_id: string;
-  card_id: string;
-  observation?: string;
-}
+export type { CreateInstallmentParams };
 
 /**
  * InstallmentService - Domain business logic for multi-installment purchases
@@ -59,7 +51,7 @@ export class InstallmentService {
 
       transactionsToInsert.push({
         id: crypto.randomUUID(),
-        type: 'expense',
+        type: TransactionType.EXPENSE,
         amount: installmentAmount,
         date: installmentDate.toISOString().split('T')[0],
         category_id,

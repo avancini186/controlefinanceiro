@@ -1,4 +1,20 @@
-export type TransactionType = 'income' | 'expense';
+import { 
+  TransactionType, 
+  TransactionStatus, 
+  AccountType, 
+  CardType, 
+  BudgetPeriod, 
+  InstallmentStatus 
+} from './enums';
+
+export { 
+  TransactionType, 
+  TransactionStatus, 
+  AccountType, 
+  CardType, 
+  BudgetPeriod, 
+  InstallmentStatus 
+};
 
 export interface Category {
   id: string;
@@ -14,6 +30,7 @@ export interface BudgetCategory {
   name: string;
   color: string;
   icon: string;
+  period?: BudgetPeriod;
   created_at?: string;
 }
 
@@ -21,6 +38,7 @@ export interface Account {
   id: string;
   name: string;
   bank: string;
+  type?: AccountType;
   initial_balance: number;
   color: string;
   created_at?: string;
@@ -30,6 +48,7 @@ export interface CreditCard {
   id: string;
   name: string;
   bank: string;
+  type?: CardType;
   limit_amount: number;
   closing_day: number;
   due_day: number;
@@ -42,12 +61,14 @@ export interface InstallmentGroup {
   description: string;
   total_amount: number;
   installments_count: number;
+  status?: InstallmentStatus;
   created_at?: string;
 }
 
 export interface Transaction {
   id: string;
   type: TransactionType;
+  status?: TransactionStatus;
   amount: number;
   date: string; // YYYY-MM-DD
   category_id: string;
@@ -65,4 +86,14 @@ export interface TransactionWithRelations extends Transaction {
   account?: Account;
   card?: CreditCard;
   installment_group?: InstallmentGroup;
+}
+
+export interface CreateInstallmentParams {
+  description: string;
+  total_amount: number;
+  installments_count: number;
+  first_date: string;
+  category_id: string;
+  card_id: string;
+  observation?: string;
 }

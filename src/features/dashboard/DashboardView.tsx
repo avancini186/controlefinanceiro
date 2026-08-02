@@ -6,7 +6,7 @@ import { Badge } from '../../components/ui/Badge';
 import { DynamicIcon } from '../../components/ui/IconPicker';
 import { formatCurrency, formatDate, getCurrentMonthDates } from '../../utils/formatters';
 import { Wallet, ArrowDownCircle, ArrowUpCircle, Receipt } from 'lucide-react';
-import type { TransactionWithRelations } from '../../types/database';
+import { TransactionType, type TransactionWithRelations } from '../../types';
 
 export const DashboardView: React.FC = () => {
   const { accounts, transactions, isLoading } = useFinancial();
@@ -15,10 +15,10 @@ export const DashboardView: React.FC = () => {
   // 1. Calculate Saldo Atual (Initial balance + total incomes - total expenses)
   const initialAccountsBalance = accounts.reduce((acc, a) => acc + Number(a.initial_balance || 0), 0);
   const totalIncomeAllTime = transactions
-    .filter((t) => t.type === 'income')
+    .filter((t) => t.type === TransactionType.INCOME)
     .reduce((acc, t) => acc + Number(t.amount || 0), 0);
   const totalExpenseAllTime = transactions
-    .filter((t) => t.type === 'expense')
+    .filter((t) => t.type === TransactionType.EXPENSE)
     .reduce((acc, t) => acc + Number(t.amount || 0), 0);
   
   const currentBalance = initialAccountsBalance + totalIncomeAllTime - totalExpenseAllTime;
@@ -27,11 +27,11 @@ export const DashboardView: React.FC = () => {
   const currentMonthTransactions = transactions.filter((t) => t.date && t.date.startsWith(currentMonthYear));
   
   const monthIncome = currentMonthTransactions
-    .filter((t) => t.type === 'income')
+    .filter((t) => t.type === TransactionType.INCOME)
     .reduce((acc, t) => acc + Number(t.amount || 0), 0);
 
   const monthExpense = currentMonthTransactions
-    .filter((t) => t.type === 'expense')
+    .filter((t) => t.type === TransactionType.EXPENSE)
     .reduce((acc, t) => acc + Number(t.amount || 0), 0);
 
   // 3. Recent Transactions (Top 6)
@@ -91,7 +91,7 @@ export const DashboardView: React.FC = () => {
       header: 'Valor',
       className: 'text-right',
       cell: (tx: TransactionWithRelations) => {
-        const isIncome = tx.type === 'income';
+        const isIncome = tx.type === TransactionType.INCOME;
         return (
           <span
             className={`font-bold font-mono text-sm ${

@@ -4,7 +4,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { IconPicker, DynamicIcon } from '../../components/ui/IconPicker';
-import type { Category, TransactionType } from '../../types/database';
+import { TransactionType, type Category } from '../../types';
 import { validateRequired } from '../../utils/validation';
 
 interface CategoryModalProps {
@@ -26,7 +26,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   categoryToEdit,
 }) => {
   const [name, setName] = useState('');
-  const [type, setType] = useState<TransactionType>('expense');
+  const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [color, setColor] = useState('#3b82f6');
   const [icon, setIcon] = useState('Tag');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -40,7 +40,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       setIcon(categoryToEdit.icon);
     } else {
       setName('');
-      setType('expense');
+      setType(TransactionType.EXPENSE);
       setColor('#3b82f6');
       setIcon('Tag');
     }
@@ -93,8 +93,8 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
           value={type}
           onChange={(e) => setType(e.target.value as TransactionType)}
           options={[
-            { value: 'expense', label: 'Despesa' },
-            { value: 'income', label: 'Receita' },
+            { value: TransactionType.EXPENSE, label: 'Despesa' },
+            { value: TransactionType.INCOME, label: 'Receita' },
           ]}
         />
 

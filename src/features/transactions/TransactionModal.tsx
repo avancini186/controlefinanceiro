@@ -5,7 +5,7 @@ import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { useFinancial } from '../../context/FinancialContext';
 import { TransactionService, InstallmentService } from '../../services/financial';
-import type { TransactionWithRelations, TransactionType } from '../../types/database';
+import { TransactionType, type TransactionWithRelations } from '../../types';
 import { validateRequired } from '../../utils/validation';
 import { formatCurrency } from '../../utils/formatters';
 import { Layers } from 'lucide-react';
@@ -25,7 +25,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 }) => {
   const { categories, accounts, cards } = useFinancial();
 
-  const [type, setType] = useState<TransactionType>('expense');
+  const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [categoryId, setCategoryId] = useState<string>('');
@@ -66,7 +66,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setObservation(transactionToEdit.observation || '');
       setIsInstallment(false);
     } else {
-      setType('expense');
+      setType(TransactionType.EXPENSE);
       setAmount('');
       setDate(new Date().toISOString().split('T')[0]);
       setCategoryId(availableCategories[0]?.id || categories[0]?.id || '');
@@ -176,9 +176,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         <div className="flex items-center bg-slate-100 p-1 rounded-xl">
           <button
             type="button"
-            onClick={() => setType('expense')}
+            onClick={() => setType(TransactionType.EXPENSE)}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-              type === 'expense'
+              type === TransactionType.EXPENSE
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -187,9 +187,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setType('income')}
+            onClick={() => setType(TransactionType.INCOME)}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-              type === 'income'
+              type === TransactionType.INCOME
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
