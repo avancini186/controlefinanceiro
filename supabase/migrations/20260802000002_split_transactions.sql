@@ -1,5 +1,4 @@
--- Split Transactions Migration
--- Migration: 20260802_split_transactions.sql
+-- Migration: 20260802000002_split_transactions.sql
 
 CREATE TABLE IF NOT EXISTS public.transacoes_splits (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -10,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.transacoes_splits (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Enable Row Level Security (RLS) and grant open access for public API
+-- Enable Row Level Security (RLS)
 ALTER TABLE public.transacoes_splits ENABLE ROW LEVEL SECURITY;
 
 DO $$ 
