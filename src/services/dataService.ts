@@ -9,64 +9,12 @@ import type {
   TransactionWithRelations 
 } from '../types/database';
 
-// Default Initial Seed Data for local fallback or initial state
-const INITIAL_CATEGORIES: Category[] = [
-  { id: 'cat-1', name: 'Salário', type: 'income', color: '#10b981', icon: 'DollarSign' },
-  { id: 'cat-2', name: 'Investimentos', type: 'income', color: '#06b6d4', icon: 'TrendingUp' },
-  { id: 'cat-3', name: 'Alimentação', type: 'expense', color: '#f59e0b', icon: 'ShoppingBag' },
-  { id: 'cat-4', name: 'Moradia', type: 'expense', color: '#ef4444', icon: 'Home' },
-  { id: 'cat-5', name: 'Transporte', type: 'expense', color: '#8b5cf6', icon: 'Car' },
-  { id: 'cat-6', name: 'Lazer', type: 'expense', color: '#ec4899', icon: 'Smile' },
-];
-
-const INITIAL_BUDGET_CATEGORIES: BudgetCategory[] = [
-  { id: 'bcat-1', name: 'Gastos Essenciais', color: '#3b82f6', icon: 'ShieldAlert' },
-  { id: 'bcat-2', name: 'Estilo de Vida', color: '#8b5cf6', icon: 'Coffee' },
-  { id: 'bcat-3', name: 'Reserva de Emergência', color: '#10b981', icon: 'PiggyBank' },
-];
-
-const INITIAL_ACCOUNTS: Account[] = [
-  { id: 'acc-1', name: 'Conta Principal', bank: 'Banco do Brasil', initial_balance: 3500.00, color: '#10b981' },
-  { id: 'acc-2', name: 'Reserva', bank: 'Nubank', initial_balance: 8000.00, color: '#8b5cf6' },
-];
-
-const INITIAL_CARDS: CreditCard[] = [
-  { id: 'card-1', name: 'Cartão Black', bank: 'Nubank', limit_amount: 10000.00, closing_day: 5, due_day: 12, color: '#18181b' },
-  { id: 'card-2', name: 'Cartão Platinum', bank: 'Itaú', limit_amount: 5000.00, closing_day: 20, due_day: 27, color: '#f97316' },
-];
-
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  { 
-    id: 'tx-1', 
-    type: 'income', 
-    amount: 5500.00, 
-    date: new Date().toISOString().split('T')[0], 
-    category_id: 'cat-1', 
-    account_id: 'acc-1', 
-    description: 'Salário Mensal', 
-    observation: 'Pagamento efetuado via PIX' 
-  },
-  { 
-    id: 'tx-2', 
-    type: 'expense', 
-    amount: 250.00, 
-    date: new Date().toISOString().split('T')[0], 
-    category_id: 'cat-3', 
-    account_id: 'acc-1', 
-    description: 'Supermercado', 
-    observation: 'Compras da semana' 
-  },
-  { 
-    id: 'tx-3', 
-    type: 'expense', 
-    amount: 120.00, 
-    date: new Date().toISOString().split('T')[0], 
-    category_id: 'cat-5', 
-    card_id: 'card-1', 
-    description: 'Combustível', 
-    observation: 'Posto Shell' 
-  },
-];
+// Clean default state for real database usage
+const INITIAL_CATEGORIES: Category[] = [];
+const INITIAL_BUDGET_CATEGORIES: BudgetCategory[] = [];
+const INITIAL_ACCOUNTS: Account[] = [];
+const INITIAL_CARDS: CreditCard[] = [];
+const INITIAL_TRANSACTIONS: Transaction[] = [];
 
 // LocalStorage Persistence Helpers
 const getLocal = <T>(key: string, fallback: T): T => {
