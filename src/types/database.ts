@@ -65,19 +65,30 @@ export interface InstallmentGroup {
   created_at?: string;
 }
 
+export interface TransactionSplit {
+  id: string;
+  transaction_id: string;
+  category_id: string;
+  amount: number;
+  description?: string;
+  created_at?: string;
+  category?: Category;
+}
+
 export interface Transaction {
   id: string;
   type: TransactionType;
   status?: TransactionStatus;
   amount: number;
   date: string; // YYYY-MM-DD
-  category_id: string;
+  category_id?: string | null;
   account_id?: string | null;
   card_id?: string | null;
   description?: string;
   observation?: string;
   installment_group_id?: string | null;
   installment_number?: string | null; // e.g. "1/12"
+  is_split?: boolean;
   created_at?: string;
 }
 
@@ -86,6 +97,7 @@ export interface TransactionWithRelations extends Transaction {
   account?: Account;
   card?: CreditCard;
   installment_group?: InstallmentGroup;
+  splits?: TransactionSplit[];
 }
 
 export interface CreateInstallmentParams {
@@ -96,4 +108,5 @@ export interface CreateInstallmentParams {
   category_id: string;
   card_id: string;
   observation?: string;
+  splits?: Omit<TransactionSplit, 'id' | 'transaction_id'>[];
 }

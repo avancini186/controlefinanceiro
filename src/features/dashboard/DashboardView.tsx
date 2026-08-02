@@ -5,7 +5,7 @@ import { Table } from '../../components/ui/Table';
 import { Badge } from '../../components/ui/Badge';
 import { DynamicIcon } from '../../components/ui/IconPicker';
 import { formatCurrency, formatDate, getCurrentMonthDates } from '../../utils/formatters';
-import { Wallet, ArrowDownCircle, ArrowUpCircle, Receipt } from 'lucide-react';
+import { Wallet, ArrowDownCircle, ArrowUpCircle, Receipt, Split } from 'lucide-react';
 import { TransactionType, type TransactionWithRelations } from '../../types';
 
 export const DashboardView: React.FC = () => {
@@ -54,7 +54,7 @@ export const DashboardView: React.FC = () => {
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs"
             style={{ backgroundColor: tx.category?.color || '#94a3b8' }}
           >
-            <DynamicIcon name={tx.category?.icon || 'Tag'} className="w-4 h-4" />
+            <DynamicIcon name={tx.splits && tx.splits.length > 0 ? 'Split' : (tx.category?.icon || 'Tag')} className="w-4 h-4" />
           </div>
           <div className="flex flex-col">
             <span className="font-semibold text-slate-800">{tx.description || 'Transação'}</span>
@@ -68,9 +68,16 @@ export const DashboardView: React.FC = () => {
     {
       header: 'Categoria',
       cell: (tx: TransactionWithRelations) => (
-        <Badge variant="slate">
-          {tx.category?.name || 'Sem Categoria'}
-        </Badge>
+        tx.splits && tx.splits.length > 0 ? (
+          <Badge variant="purple">
+            <Split className="w-3 h-3" />
+            Dividida ({tx.splits.length} cat.)
+          </Badge>
+        ) : (
+          <Badge variant="slate">
+            {tx.category?.name || 'Sem Categoria'}
+          </Badge>
+        )
       ),
     },
     {

@@ -11,7 +11,7 @@ import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { TransactionModal } from './TransactionModal';
 import { DynamicIcon } from '../../components/ui/IconPicker';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { Plus, Search, Edit2, Trash2, Layers, AlertCircle, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Layers, AlertCircle, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Split } from 'lucide-react';
 
 export const TransactionsView: React.FC = () => {
   const { transactions, refreshData } = useFinancial();
@@ -36,7 +36,8 @@ export const TransactionsView: React.FC = () => {
   const filteredTransactions = transactions.filter((tx) => {
     const descMatch = (tx.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     const catMatch = (tx.category?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSearch = descMatch || catMatch;
+    const splitCatMatch = tx.splits?.some(s => (s.category?.name || s.description || '').toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = descMatch || catMatch || Boolean(splitCatMatch);
     const matchesType = typeFilter === 'all' || tx.type === typeFilter;
     
     // Month filtering: only show transactions belonging to the selected month (unless "all" is selected)
@@ -110,7 +111,7 @@ export const TransactionsView: React.FC = () => {
             className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs"
             style={{ backgroundColor: tx.category?.color || '#94a3b8' }}
           >
-            <DynamicIcon name={tx.category?.icon || 'Tag'} className="w-5 h-5" />
+            <DynamicIcon name={tx.splits && tx.splits.length > 0 ? 'Split' : (tx.category?.icon || 'Tag')} className="w-5 h-5" />
           </div>
           <div className="flex flex-col">
             <span className="font-semibold text-slate-800">{tx.description || 'Sem Descrição'}</span>
@@ -122,9 +123,16 @@ export const TransactionsView: React.FC = () => {
     {
       header: 'Categoria',
       cell: (tx: TransactionWithRelations) => (
-        <Badge variant="slate">
-          {tx.category?.name || 'Sem Categoria'}
-        </Badge>
+        tx.splits && tx.splits.length > 0 ? (
+          <Badge variant="purple">
+            <Split className="w-3 h-3" />
+            Dividida ({tx.splits.length} cat.)
+          </Badge>
+        ) : (
+          <Badge variant="slate">
+            {tx.category?.name || 'Sem Categoria'}
+          </Badge>
+        )
       ),
     },
     {
