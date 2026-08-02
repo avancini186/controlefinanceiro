@@ -4,7 +4,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { useFinancial } from '../../context/FinancialContext';
-import { DataService } from '../../services/dataService';
+import { FinancialService } from '../../services/financialService';
 import type { TransactionWithRelations, TransactionType } from '../../types/database';
 import { validateRequired } from '../../utils/validation';
 import { formatCurrency } from '../../utils/formatters';
@@ -126,7 +126,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     try {
       if (!transactionToEdit && isInstallment && sourceType === 'card') {
         // Multi-installment creation
-        await DataService.createInstallmentPurchase({
+        await FinancialService.createInstallmentPurchase({
           description: description.trim() || 'Compra Parcelada',
           total_amount: numAmount,
           installments_count: Number(installmentsCount),
@@ -137,7 +137,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         });
       } else {
         // Single transaction creation or update
-        await DataService.saveSingleTransaction({
+        await FinancialService.saveSingleTransaction({
           id: transactionToEdit?.id,
           type,
           amount: numAmount,

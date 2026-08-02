@@ -9,14 +9,17 @@ import type {
   TransactionWithRelations 
 } from '../types/database';
 
-// Clean default state for real database usage
-const INITIAL_CATEGORIES: Category[] = [];
-const INITIAL_BUDGET_CATEGORIES: BudgetCategory[] = [];
-const INITIAL_ACCOUNTS: Account[] = [];
-const INITIAL_CARDS: CreditCard[] = [];
-const INITIAL_TRANSACTIONS: Transaction[] = [];
+// Storage keys
+const STORAGE_KEYS = {
+  CATEGORIES: 'categorias',
+  BUDGET_CATEGORIES: 'categorias_orcamento',
+  ACCOUNTS: 'contas',
+  CARDS: 'cartoes',
+  INSTALLMENT_GROUPS: 'grupos_parcelamento',
+  TRANSACTIONS: 'transacoes',
+} as const;
 
-// LocalStorage Persistence Helpers
+// LocalStorage Persistence Primitive Helpers
 const getLocal = <T>(key: string, fallback: T): T => {
   try {
     const item = localStorage.getItem(`fin_app_${key}`);
@@ -35,169 +38,156 @@ const setLocal = <T>(key: string, value: T): void => {
   }
 };
 
+/**
+ * DataService - Data Access Layer (DAL)
+ * Responsible EXCLUSIVELY for Database/Storage CRUD operations and Supabase queries.
+ * Contains NO financial domain logic or business rules.
+ */
 export class DataService {
-  // Reset demo data to localStorage
-  static resetLocalSeed() {
-    setLocal('categorias', INITIAL_CATEGORIES);
-    setLocal('categorias_orcamento', INITIAL_BUDGET_CATEGORIES);
-    setLocal('contas', INITIAL_ACCOUNTS);
-    setLocal('cartoes', INITIAL_CARDS);
-    setLocal('grupos_parcelamento', []);
-    setLocal('transacoes', INITIAL_TRANSACTIONS);
+  // --- RESET PERSISTENCE ---
+  static resetLocalSeed(): void {
+    setLocal(STORAGE_KEYS.CATEGORIES, []);
+    setLocal(STORAGE_KEYS.BUDGET_CATEGORIES, []);
+    setLocal(STORAGE_KEYS.ACCOUNTS, []);
+    setLocal(STORAGE_KEYS.CARDS, []);
+    setLocal(STORAGE_KEYS.INSTALLMENT_GROUPS, []);
+    setLocal(STORAGE_KEYS.TRANSACTIONS, []);
   }
 
-  // --- CATEGORIES ---
-  static async getCategories(): Promise<Category[]> {
+  // --- CATEGORIES DAL ---
+  static async fetchCategories(): Promise<Category[]> {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.from('categorias').select('*').order('name');
       if (!error && data) return data;
     }
-    return getLocal<Category[]>('categorias', INITIAL_CATEGORIES);
+    return getLocal<Category[]>(STORAGE_KEYS.CATEGORIES, []);
   }
 
-  static async saveCategory(category: Omit<Category, 'id'> & { id?: string }): Promise<Category> {
-    const isNew = !category.id;
-    const id = category.id || crypto.randomUUID();
-    const payload = { ...category, id };
-
+  static async upsertCategory(category: Category): Promise<Category> {
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('categorias').upsert(payload).select().single();
+      const { data, error } = await supabase.from('categorias').upsert(category).select().single();
       if (!error && data) return data;
     }
 
-    const items = getLocal<Category[]>('categorias', INITIAL_CATEGORIES);
-    const updated = isNew 
-      ? [payload as Category, ...items]
-      : items.map(item => item.id === id ? { ...item, ...payload } : item);
+    const items = getLocal<Category[]>(STORAGE_KEYS.CATEGORIES, []);
+    const exists = items.some(i => i.id === category.id);
+    const updated = exists 
+      ? items.map(i => i.id === category.id ? { ...i, ...category } : i)
+      : [category, ...items];
     
-    setLocal('categorias', updated);
-    return payload as Category;
+    setLocal(STORAGE_KEYS.CATEGORIES, updated);
+    return category;
   }
 
   static async deleteCategory(id: string): Promise<void> {
     if (isSupabaseConfigured && supabase) {
       await supabase.from('categorias').delete().eq('id', id);
     }
-    const items = getLocal<Category[]>('categorias', INITIAL_CATEGORIES);
-    setLocal('categorias', items.filter(i => i.id !== id));
+    const items = getLocal<Category[]>(STORAGE_KEYS.CATEGORIES, []);
+    setLocal(STORAGE_KEYS.CATEGORIES, items.filter(i => i.id !== id));
   }
 
-  // --- BUDGET CATEGORIES ---
-  static async getBudgetCategories(): Promise<BudgetCategory[]> {
+  // --- BUDGET CATEGORIES DAL ---
+  static async fetchBudgetCategories(): Promise<BudgetCategory[]> {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.from('categorias_orcamento').select('*').order('name');
       if (!error && data) return data;
     }
-    return getLocal<BudgetCategory[]>('categorias_orcamento', INITIAL_BUDGET_CATEGORIES);
+    return getLocal<BudgetCategory[]>(STORAGE_KEYS.BUDGET_CATEGORIES, []);
   }
 
-  static async saveBudgetCategory(item: Omit<BudgetCategory, 'id'> & { id?: string }): Promise<BudgetCategory> {
-    const isNew = !item.id;
-    const id = item.id || crypto.randomUUID();
-    const payload = { ...item, id };
-
+  static async upsertBudgetCategory(item: BudgetCategory): Promise<BudgetCategory> {
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('categorias_orcamento').upsert(payload).select().single();
+      const { data, error } = await supabase.from('categorias_orcamento').upsert(item).select().single();
       if (!error && data) return data;
     }
 
-    const items = getLocal<BudgetCategory[]>('categorias_orcamento', INITIAL_BUDGET_CATEGORIES);
-    const updated = isNew 
-      ? [payload as BudgetCategory, ...items]
-      : items.map(i => i.id === id ? { ...i, ...payload } : i);
+    const items = getLocal<BudgetCategory[]>(STORAGE_KEYS.BUDGET_CATEGORIES, []);
+    const exists = items.some(i => i.id === item.id);
+    const updated = exists 
+      ? items.map(i => i.id === item.id ? { ...i, ...item } : i)
+      : [item, ...items];
     
-    setLocal('categorias_orcamento', updated);
-    return payload as BudgetCategory;
+    setLocal(STORAGE_KEYS.BUDGET_CATEGORIES, updated);
+    return item;
   }
 
   static async deleteBudgetCategory(id: string): Promise<void> {
     if (isSupabaseConfigured && supabase) {
       await supabase.from('categorias_orcamento').delete().eq('id', id);
     }
-    const items = getLocal<BudgetCategory[]>('categorias_orcamento', INITIAL_BUDGET_CATEGORIES);
-    setLocal('categorias_orcamento', items.filter(i => i.id !== id));
+    const items = getLocal<BudgetCategory[]>(STORAGE_KEYS.BUDGET_CATEGORIES, []);
+    setLocal(STORAGE_KEYS.BUDGET_CATEGORIES, items.filter(i => i.id !== id));
   }
 
-  // --- ACCOUNTS ---
-  static async getAccounts(): Promise<Account[]> {
+  // --- ACCOUNTS DAL ---
+  static async fetchAccounts(): Promise<Account[]> {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.from('contas').select('*').order('name');
       if (!error && data) return data;
     }
-    return getLocal<Account[]>('contas', INITIAL_ACCOUNTS);
+    return getLocal<Account[]>(STORAGE_KEYS.ACCOUNTS, []);
   }
 
-  static async saveAccount(item: Omit<Account, 'id'> & { id?: string }): Promise<Account> {
-    const isNew = !item.id;
-    const id = item.id || crypto.randomUUID();
-    const payload = { ...item, id };
-
+  static async upsertAccount(item: Account): Promise<Account> {
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('contas').upsert(payload).select().single();
+      const { data, error } = await supabase.from('contas').upsert(item).select().single();
       if (!error && data) return data;
     }
 
-    const items = getLocal<Account[]>('contas', INITIAL_ACCOUNTS);
-    const updated = isNew 
-      ? [payload as Account, ...items]
-      : items.map(i => i.id === id ? { ...i, ...payload } : i);
+    const items = getLocal<Account[]>(STORAGE_KEYS.ACCOUNTS, []);
+    const exists = items.some(i => i.id === item.id);
+    const updated = exists 
+      ? items.map(i => i.id === item.id ? { ...i, ...item } : i)
+      : [item, ...items];
     
-    setLocal('contas', updated);
-    return payload as Account;
+    setLocal(STORAGE_KEYS.ACCOUNTS, updated);
+    return item;
   }
 
   static async deleteAccount(id: string): Promise<void> {
     if (isSupabaseConfigured && supabase) {
       await supabase.from('contas').delete().eq('id', id);
     }
-    const items = getLocal<Account[]>('contas', INITIAL_ACCOUNTS);
-    setLocal('contas', items.filter(i => i.id !== id));
+    const items = getLocal<Account[]>(STORAGE_KEYS.ACCOUNTS, []);
+    setLocal(STORAGE_KEYS.ACCOUNTS, items.filter(i => i.id !== id));
   }
 
-  // --- CREDIT CARDS ---
-  static async getCreditCards(): Promise<CreditCard[]> {
+  // --- CREDIT CARDS DAL ---
+  static async fetchCreditCards(): Promise<CreditCard[]> {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.from('cartoes').select('*').order('name');
       if (!error && data) return data;
     }
-    return getLocal<CreditCard[]>('cartoes', INITIAL_CARDS);
+    return getLocal<CreditCard[]>(STORAGE_KEYS.CARDS, []);
   }
 
-  static async saveCreditCard(item: Omit<CreditCard, 'id'> & { id?: string }): Promise<CreditCard> {
-    const isNew = !item.id;
-    const id = item.id || crypto.randomUUID();
-    const payload = { ...item, id };
-
+  static async upsertCreditCard(item: CreditCard): Promise<CreditCard> {
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('cartoes').upsert(payload).select().single();
+      const { data, error } = await supabase.from('cartoes').upsert(item).select().single();
       if (!error && data) return data;
     }
 
-    const items = getLocal<CreditCard[]>('cartoes', INITIAL_CARDS);
-    const updated = isNew 
-      ? [payload as CreditCard, ...items]
-      : items.map(i => i.id === id ? { ...i, ...payload } : i);
+    const items = getLocal<CreditCard[]>(STORAGE_KEYS.CARDS, []);
+    const exists = items.some(i => i.id === item.id);
+    const updated = exists 
+      ? items.map(i => i.id === item.id ? { ...i, ...item } : i)
+      : [item, ...items];
     
-    setLocal('cartoes', updated);
-    return payload as CreditCard;
+    setLocal(STORAGE_KEYS.CARDS, updated);
+    return item;
   }
 
   static async deleteCreditCard(id: string): Promise<void> {
     if (isSupabaseConfigured && supabase) {
       await supabase.from('cartoes').delete().eq('id', id);
     }
-    const items = getLocal<CreditCard[]>('cartoes', INITIAL_CARDS);
-    setLocal('cartoes', items.filter(i => i.id !== id));
+    const items = getLocal<CreditCard[]>(STORAGE_KEYS.CARDS, []);
+    setLocal(STORAGE_KEYS.CARDS, items.filter(i => i.id !== id));
   }
 
-  // --- TRANSACTIONS & INSTALLMENT GROUPS ---
-  static async getTransactions(): Promise<TransactionWithRelations[]> {
-    let rawTransactions: Transaction[] = [];
-    let categories: Category[] = [];
-    let accounts: Account[] = [];
-    let cards: CreditCard[] = [];
-    let installmentGroups: InstallmentGroup[] = [];
-
+  // --- TRANSACTIONS & INSTALLMENT GROUPS DAL ---
+  static async fetchTransactions(): Promise<TransactionWithRelations[]> {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase
         .from('transacoes')
@@ -213,12 +203,12 @@ export class DataService {
       if (!error && data) return data as TransactionWithRelations[];
     }
 
-    // Local Storage Fallback with joined relations
-    rawTransactions = getLocal<Transaction[]>('transacoes', INITIAL_TRANSACTIONS);
-    categories = getLocal<Category[]>('categorias', INITIAL_CATEGORIES);
-    accounts = getLocal<Account[]>('contas', INITIAL_ACCOUNTS);
-    cards = getLocal<CreditCard[]>('cartoes', INITIAL_CARDS);
-    installmentGroups = getLocal<InstallmentGroup[]>('grupos_parcelamento', []);
+    // Local Storage Fallback with joins
+    const rawTransactions = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, []);
+    const categories = getLocal<Category[]>(STORAGE_KEYS.CATEGORIES, []);
+    const accounts = getLocal<Account[]>(STORAGE_KEYS.ACCOUNTS, []);
+    const cards = getLocal<CreditCard[]>(STORAGE_KEYS.CARDS, []);
+    const installmentGroups = getLocal<InstallmentGroup[]>(STORAGE_KEYS.INSTALLMENT_GROUPS, []);
 
     return rawTransactions.map(tx => ({
       ...tx,
@@ -229,96 +219,46 @@ export class DataService {
     })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }
 
-  static async saveSingleTransaction(tx: Omit<Transaction, 'id'> & { id?: string }): Promise<Transaction> {
-    const isNew = !tx.id;
-    const id = tx.id || crypto.randomUUID();
-    const payload = { ...tx, id };
-
+  static async upsertTransaction(tx: Transaction): Promise<Transaction> {
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('transacoes').upsert(payload).select().single();
+      const { data, error } = await supabase.from('transacoes').upsert(tx).select().single();
       if (!error && data) return data;
     }
 
-    const items = getLocal<Transaction[]>('transacoes', INITIAL_TRANSACTIONS);
-    const updated = isNew 
-      ? [payload as Transaction, ...items]
-      : items.map(i => i.id === id ? { ...i, ...payload } : i);
+    const items = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, []);
+    const exists = items.some(i => i.id === tx.id);
+    const updated = exists 
+      ? items.map(i => i.id === tx.id ? { ...i, ...tx } : i)
+      : [tx, ...items];
     
-    setLocal('transacoes', updated);
-    return payload as Transaction;
+    setLocal(STORAGE_KEYS.TRANSACTIONS, updated);
+    return tx;
   }
 
-  /**
-   * Creates an Installment Group and automatically generates N monthly transactions
-   */
-  static async createInstallmentPurchase(params: {
-    description: string;
-    total_amount: number;
-    installments_count: number;
-    first_date: string;
-    category_id: string;
-    card_id: string;
-    observation?: string;
-  }): Promise<void> {
-    const { description, total_amount, installments_count, first_date, category_id, card_id, observation } = params;
-    
-    const groupId = crypto.randomUUID();
-    const installmentGroup: InstallmentGroup = {
-      id: groupId,
-      description,
-      total_amount,
-      installments_count,
-      created_at: new Date().toISOString()
-    };
-
-    // Calculate installment values
-    const baseAmount = Math.floor((total_amount / installments_count) * 100) / 100;
-    const remainder = Math.round((total_amount - (baseAmount * installments_count)) * 100) / 100;
-
-    const transactionsToInsert: Transaction[] = [];
-    const startDate = new Date(first_date + 'T00:00:00');
-
-    for (let i = 0; i < installments_count; i++) {
-      const installmentDate = new Date(startDate);
-      installmentDate.setMonth(startDate.getMonth() + i);
-
-      // Add remainder rounding to the first installment
-      const installmentAmount = i === 0 ? Number((baseAmount + remainder).toFixed(2)) : Number(baseAmount.toFixed(2));
-      
-      transactionsToInsert.push({
-        id: crypto.randomUUID(),
-        type: 'expense',
-        amount: installmentAmount,
-        date: installmentDate.toISOString().split('T')[0],
-        category_id,
-        card_id,
-        description: `${description} (${i + 1}/${installments_count})`,
-        observation: observation || undefined,
-        installment_group_id: groupId,
-        installment_number: `${i + 1}/${installments_count}`
-      });
-    }
-
+  static async insertInstallmentGroupAndTransactions(
+    installmentGroup: InstallmentGroup, 
+    transactions: Transaction[]
+  ): Promise<void> {
     if (isSupabaseConfigured && supabase) {
       await supabase.from('grupos_parcelamento').insert(installmentGroup);
-      await supabase.from('transacoes').insert(transactionsToInsert);
+      await supabase.from('transacoes').insert(transactions);
       return;
     }
 
-    // Local Storage Fallback
-    const groups = getLocal<InstallmentGroup[]>('grupos_parcelamento', []);
-    setLocal('grupos_parcelamento', [installmentGroup, ...groups]);
+    // Local Storage Batch Fallback
+    const groups = getLocal<InstallmentGroup[]>(STORAGE_KEYS.INSTALLMENT_GROUPS, []);
+    setLocal(STORAGE_KEYS.INSTALLMENT_GROUPS, [installmentGroup, ...groups]);
 
-    const items = getLocal<Transaction[]>('transacoes', INITIAL_TRANSACTIONS);
-    setLocal('transacoes', [...transactionsToInsert, ...items]);
+    const items = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, []);
+    setLocal(STORAGE_KEYS.TRANSACTIONS, [...transactions, ...items]);
   }
 
   static async deleteTransaction(id: string): Promise<void> {
     if (isSupabaseConfigured && supabase) {
       await supabase.from('transacoes').delete().eq('id', id);
     }
-    const items = getLocal<Transaction[]>('transacoes', INITIAL_TRANSACTIONS);
-    setLocal('transacoes', items.filter(i => i.id !== id));
+    const items = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, []);
+    setLocal(STORAGE_KEYS.TRANSACTIONS, items.filter(i => i.id !== id));
   }
 
   static async deleteInstallmentGroup(groupId: string): Promise<void> {
@@ -328,10 +268,10 @@ export class DataService {
     }
 
     // Local Storage Cascade Delete
-    const groups = getLocal<InstallmentGroup[]>('grupos_parcelamento', []);
-    setLocal('grupos_parcelamento', groups.filter(g => g.id !== groupId));
+    const groups = getLocal<InstallmentGroup[]>(STORAGE_KEYS.INSTALLMENT_GROUPS, []);
+    setLocal(STORAGE_KEYS.INSTALLMENT_GROUPS, groups.filter(g => g.id !== groupId));
 
-    const items = getLocal<Transaction[]>('transacoes', INITIAL_TRANSACTIONS);
-    setLocal('transacoes', items.filter(t => t.installment_group_id !== groupId));
+    const items = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, []);
+    setLocal(STORAGE_KEYS.TRANSACTIONS, items.filter(t => t.installment_group_id !== groupId));
   }
 }
