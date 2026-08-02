@@ -11,13 +11,19 @@ import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { TransactionModal } from './TransactionModal';
 import { DynamicIcon } from '../../components/ui/IconPicker';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { Plus, Search, Edit2, Trash2, Layers, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Layers, AlertCircle, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 
 export const TransactionsView: React.FC = () => {
   const { transactions, refreshData } = useFinancial();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+
+  // Month Filter state (default: current YYYY-MM)
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionWithRelations | null>(null);
@@ -26,13 +32,49 @@ export const TransactionsView: React.FC = () => {
   const [deletingTx, setDeletingTx] = useState<TransactionWithRelations | null>(null);
   const [showInstallmentDeleteModal, setShowInstallmentDeleteModal] = useState(false);
 
+  // Filter transactions by Search, Type and Selected Month
   const filteredTransactions = transactions.filter((tx) => {
     const descMatch = (tx.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     const catMatch = (tx.category?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSearch = descMatch || catMatch;
     const matchesType = typeFilter === 'all' || tx.type === typeFilter;
-    return matchesSearch && matchesType;
+    
+    // Month filtering: only show transactions belonging to the selected month (unless "all" is selected)
+    const matchesMonth = selectedMonth === 'all' || (tx.date && tx.date.startsWith(selectedMonth));
+
+    return matchesSearch && matchesType && matchesMonth;
   });
+
+  // Month navigation helpers
+  const handlePrevMonth = () => {
+    if (selectedMonth === 'all') {
+      const now = new Date();
+      setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+      return;
+    }
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const date = new Date(Number(yearStr), Number(monthStr) - 1 - 1, 1);
+    setSelectedMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 'all') {
+      const now = new Date();
+      setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+      return;
+    }
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const date = new Date(Number(yearStr), Number(monthStr) - 1 + 1, 1);
+    setSelectedMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const getMonthLabel = (monthStr: string) => {
+    if (monthStr === 'all') return 'Todos os Meses';
+    const [yearStr, monthNumStr] = monthStr.split('-');
+    const date = new Date(Number(yearStr), Number(monthNumStr) - 1, 15);
+    const label = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  };
 
   const handleDeleteClick = (tx: TransactionWithRelations) => {
     setDeletingTx(tx);
@@ -164,7 +206,58 @@ export const TransactionsView: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Search and Filters Header */}
+      {/* Month Navigator Toolbar */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          <button
+            onClick={handlePrevMonth}
+            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+            title="Mês anterior"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+            <CalendarIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="text-sm font-bold text-slate-800 min-w-36 text-center">
+              {getMonthLabel(selectedMonth)}
+            </span>
+          </div>
+
+          <button
+            onClick={handleNextMonth}
+            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+            title="Próximo mês"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Quick Month Options / Picker */}
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <input
+            type="month"
+            value={selectedMonth === 'all' ? '' : selectedMonth}
+            onChange={(e) => {
+              if (e.target.value) setSelectedMonth(e.target.value);
+            }}
+            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:border-slate-300 transition-colors cursor-pointer"
+          />
+
+          <button
+            onClick={() => setSelectedMonth(selectedMonth === 'all' ? new Date().toISOString().slice(0, 7) : 'all')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+              selectedMonth === 'all'
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {selectedMonth === 'all' ? 'Filtrado por Mês' : 'Ver Todos os Meses'}
+          </button>
+        </div>
+      </div>
+
+      {/* Search and Type Filters Header */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3 flex-1">
           <div className="w-full max-w-xs">
@@ -220,7 +313,11 @@ export const TransactionsView: React.FC = () => {
         columns={columns}
         data={filteredTransactions}
         keyExtractor={(tx) => tx.id}
-        emptyMessage="Nenhuma transação encontrada."
+        emptyMessage={
+          selectedMonth === 'all'
+            ? 'Nenhuma transação encontrada.'
+            : `Nenhuma transação registrada em ${getMonthLabel(selectedMonth)}.`
+        }
       />
 
       {/* Create / Edit Modal */}
