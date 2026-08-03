@@ -9,8 +9,14 @@ export const ReportsView: React.FC = () => {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  // Filter transactions for period
-  const filteredTx = transactions.filter((t) => t.data.startsWith(selectedPeriod) && t.status === 'CONCLUIDO');
+  // Filter transactions for period (using faturaCompetencia for credit cards)
+  const filteredTx = transactions.filter((t) => {
+    if (t.status !== 'CONCLUIDO') return false;
+    if (t.cartaoId) {
+      return (t.faturaCompetencia || t.data.slice(0, 7)) === selectedPeriod;
+    }
+    return t.data.startsWith(selectedPeriod);
+  });
 
   // Compute expenses by category (including splits)
   const categoryExpensesMap = new Map<string, number>();

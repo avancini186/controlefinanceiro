@@ -4,11 +4,13 @@ import { Table } from '../../components/ui/Table';
 import type { Column } from '../../components/ui/Table';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { TransactionService } from '../../services/financial/TransactionService';
 import type { Transaction } from '../../types';
 import { useTablePreferences } from '../../hooks/useTablePreferences';
 import { useApp } from '../../context/AppContext';
+import { TransactionType, TransactionStatus } from '../../types/enums';
 import {
   Plus,
   ArrowUpRight,
@@ -21,13 +23,13 @@ import {
   Eye,
   EyeOff,
   Search,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   TrendingUp,
   TrendingDown,
   Wallet,
-  Pencil,
+  Edit2,
+  CreditCard,
+  X,
 } from 'lucide-react';
 
 interface TransactionFilterState {
@@ -59,27 +61,6 @@ export const TransactionsView: React.FC = () => {
 
   const [selectedMonth, setSelectedMonth] = useState<string>(currentSystemMonth);
   const [filterByMonthActive, setFilterByMonthActive] = useState<boolean>(true);
-
-  const handlePrevMonth = () => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const d = new Date(y, m - 2, 1);
-    const prevM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedMonth(prevM);
-  };
-
-  const handleNextMonth = () => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const d = new Date(y, m, 1);
-    const nextM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedMonth(nextM);
-  };
-
-  const formatMonthName = (yearMonth: string) => {
-    const [y, m] = yearMonth.split('-').map(Number);
-    const d = new Date(y, m - 1, 1);
-    const name = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(d);
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  };
 
   // Table Preferences Persistence via localStorage
   const { preferences, setSearchQuery, setSort, toggleColumnVisibility, setFilters, resetPreferences } =
@@ -141,8 +122,15 @@ export const TransactionsView: React.FC = () => {
   const filteredTransactions = transactions.filter((tx) => {
     // Filter by selected month if month filter is active
     if (filterByMonthActive && selectedMonth) {
-      if (!tx.data.startsWith(selectedMonth)) {
-        return false;
+      if (tx.cartaoId) {
+        const comp = tx.faturaCompetencia || tx.data.substring(0, 7);
+        if (comp !== selectedMonth) {
+          return false;
+        }
+      } else {
+        if (!tx.data.startsWith(selectedMonth)) {
+          return false;
+        }
       }
     }
 
@@ -179,11 +167,15 @@ export const TransactionsView: React.FC = () => {
     .filter((t) => t.tipo === 'RECEITA')
     .reduce((acc, t) => acc + t.valor, 0);
 
-  const totalDespesas = filteredTransactions
-    .filter((t) => t.tipo === 'DESPESA')
+  const totalDespesasConta = filteredTransactions
+    .filter((t) => t.tipo === 'DESPESA' && !t.cartaoId)
     .reduce((acc, t) => acc + t.valor, 0);
 
-  const saldoMes = totalReceitas - totalDespesas;
+  const totalCartaoFatura = filteredTransactions
+    .filter((t) => t.tipo === 'DESPESA' && Boolean(t.cartaoId))
+    .reduce((acc, t) => acc + t.valor, 0);
+
+  const saldoCaixa = totalReceitas - totalDespesasConta;
 
   // Sorting Logic
   const sortedTransactions = [...filteredTransactions].sort((a, b) => {
@@ -193,9 +185,6 @@ export const TransactionsView: React.FC = () => {
     if (sortBy === 'categoria') {
       valA = a.category?.nome || '';
       valB = b.category?.nome || '';
-    } else if (sortBy === 'conta') {
-      valA = a.account?.nome || a.creditCard?.nome || '';
-      valB = b.account?.nome || b.creditCard?.nome || '';
     }
 
     if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
@@ -248,11 +237,20 @@ export const TransactionsView: React.FC = () => {
     {
       header: 'Conta / Cartão',
       accessorKey: 'conta',
-      sortable: true,
       cell: (tx) => (
-        <span className="text-slate-300 text-xs font-medium">
-          {tx.account?.nome || tx.creditCard?.nome || '-'}
-        </span>
+        <div className="flex items-center gap-2">
+          {tx.account ? (
+            <Badge variant="neutral" size="sm">
+              🏦 {tx.account.nome}
+            </Badge>
+          ) : tx.creditCard ? (
+            <Badge variant="info" size="sm">
+              💳 {tx.creditCard.nome} {tx.faturaCompetencia ? `(${tx.faturaCompetencia})` : ''}
+            </Badge>
+          ) : (
+            <span className="text-slate-500 text-xs">-</span>
+          )}
+        </div>
       ),
     },
     {
@@ -260,7 +258,16 @@ export const TransactionsView: React.FC = () => {
       accessorKey: 'status',
       sortable: true,
       cell: (tx) => (
-        <Badge variant={tx.status === 'CONCLUIDO' ? 'success' : tx.status === 'PENDENTE' ? 'warning' : 'danger'}>
+        <Badge
+          variant={
+            tx.status === TransactionStatus.CONCLUIDO
+              ? 'success'
+              : tx.status === TransactionStatus.PENDENTE
+              ? 'warning'
+              : 'danger'
+          }
+          size="sm"
+        >
           {tx.status}
         </Badge>
       ),
@@ -269,34 +276,34 @@ export const TransactionsView: React.FC = () => {
       header: 'Valor',
       accessorKey: 'valor',
       sortable: true,
-      className: 'text-right',
       cell: (tx) => (
         <span
-          className={`font-semibold font-mono text-base ${
-            tx.tipo === 'RECEITA' ? 'text-emerald-400' : 'text-slate-100'
+          className={`font-mono font-bold text-sm ${
+            tx.tipo === TransactionType.RECEITA
+              ? 'text-emerald-400'
+              : tx.tipo === TransactionType.TRANSFERENCIA
+              ? 'text-sky-400'
+              : 'text-rose-400'
           }`}
         >
-          {tx.tipo === 'RECEITA' ? '+' : '-'} {formatCurrency(tx.valor)}
+          {tx.tipo === TransactionType.RECEITA ? '+' : '-'} {formatCurrency(tx.valor)}
         </span>
       ),
     },
     {
       header: 'Ações',
-      accessorKey: 'acoes',
-      sortable: false,
-      className: 'text-center',
       cell: (tx) => (
-        <div className="flex items-center justify-center gap-1">
+        <div className="flex items-center gap-1">
           <button
             onClick={() => openTransactionModal(tx)}
-            className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors"
             title="Editar transação"
           >
-            <Pencil className="w-4 h-4" />
+            <Edit2 className="w-4 h-4" />
           </button>
           <button
             onClick={() => setTxToDelete(tx)}
-            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
             title="Excluir transação"
           >
             <Trash2 className="w-4 h-4" />
@@ -308,83 +315,60 @@ export const TransactionsView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Month Navigator Header Bar */}
-      <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
-            <Calendar className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              Visualizando Mês: <span className="text-indigo-400 font-extrabold">{formatMonthName(selectedMonth)}</span>
-            </h4>
-            <p className="text-xs text-slate-400">
-              {filterByMonthActive
-                ? `${sortedTransactions.length} movimentações encontradas neste mês`
-                : 'Exibindo movimentações de todos os meses'}
-            </p>
-          </div>
+      {/* Search and Top Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Input
+            placeholder="Pesquisar por descrição, observação, categoria, conta..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 text-xs"
+          />
         </div>
 
-        {/* Month Controls */}
-        <div className="flex items-center gap-2 bg-slate-950/70 border border-slate-800 p-1.5 rounded-xl">
-          <button
-            onClick={handlePrevMonth}
-            disabled={!filterByMonthActive}
-            className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors disabled:opacity-40"
-            title="Mês Anterior"
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant={filterByMonthActive ? 'primary' : 'outline'}
+            size="sm"
+            icon={<Calendar className="w-4 h-4" />}
+            onClick={() => setFilterByMonthActive(!filterByMonthActive)}
           >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+            {filterByMonthActive ? `Mês: ${selectedMonth}` : 'Todas as Datas'}
+          </Button>
 
-          <input
-            type="month"
-            value={selectedMonth}
-            disabled={!filterByMonthActive}
-            onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
-            className="bg-transparent text-xs font-semibold text-slate-200 px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-40"
-          />
-
-          <button
-            onClick={handleNextMonth}
-            disabled={!filterByMonthActive}
-            className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors disabled:opacity-40"
-            title="Próximo Mês"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          <div className="w-px h-4 bg-slate-800 mx-1" />
-
-          {selectedMonth !== currentSystemMonth && filterByMonthActive && (
-            <button
-              onClick={() => setSelectedMonth(currentSystemMonth)}
-              className="px-2.5 py-1 text-xs bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-lg transition-colors font-medium"
-            >
-              Mês Atual
-            </button>
+          {filterByMonthActive && (
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 min-h-[44px]"
+            />
           )}
 
-          <button
-            onClick={() => setFilterByMonthActive(!filterByMonthActive)}
-            className={`px-2.5 py-1 text-xs rounded-lg border transition-all font-medium ${
-              !filterByMonthActive
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 font-semibold'
-                : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-            }`}
-            title="Alternar entre mês selecionado e todas as transações"
+          <Button
+            variant={showAdvancedFilters ? 'primary' : 'outline'}
+            size="sm"
+            icon={<Filter className="w-4 h-4" />}
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
           >
-            {!filterByMonthActive ? 'Exibindo: Todos' : 'Ver Todos os Meses'}
-          </button>
+            Filtros
+          </Button>
+
+          {(searchQuery || Object.values(filters).some(Boolean)) && (
+            <Button variant="ghost" size="sm" icon={<X className="w-4 h-4" />} onClick={resetPreferences}>
+              Limpar
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Month Summary Cards */}
       {filterByMonthActive && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Receitas do Mês</p>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Receitas em Conta</p>
               <p className="text-lg font-bold font-mono text-emerald-400 mt-1">{formatCurrency(totalReceitas)}</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -394,8 +378,8 @@ export const TransactionsView: React.FC = () => {
 
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Despesas do Mês</p>
-              <p className="text-lg font-bold font-mono text-rose-400 mt-1">{formatCurrency(totalDespesas)}</p>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Despesas em Conta</p>
+              <p className="text-lg font-bold font-mono text-rose-400 mt-1">{formatCurrency(totalDespesasConta)}</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
               <TrendingDown className="w-5 h-5" />
@@ -404,13 +388,23 @@ export const TransactionsView: React.FC = () => {
 
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Saldo do Mês</p>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Fatura de Cartão</p>
+              <p className="text-lg font-bold font-mono text-amber-400 mt-1">{formatCurrency(totalCartaoFatura)}</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <CreditCard className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Saldo de Caixa</p>
               <p
                 className={`text-lg font-bold font-mono mt-1 ${
-                  saldoMes >= 0 ? 'text-indigo-400' : 'text-rose-400'
+                  saldoCaixa >= 0 ? 'text-indigo-400' : 'text-rose-400'
                 }`}
               >
-                {formatCurrency(saldoMes)}
+                {formatCurrency(saldoCaixa)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
