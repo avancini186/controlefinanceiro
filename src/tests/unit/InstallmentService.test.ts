@@ -47,8 +47,45 @@ describe('InstallmentService - Unit Tests', () => {
     expect(result.transactions[1].valor).toBe(33.33);
     expect(result.transactions[2].valor).toBe(33.33);
 
+    // Dates should increment month by month
+    expect(result.transactions[0].data).toBe('2026-08-01');
+    expect(result.transactions[1].data).toBe('2026-09-01');
+    expect(result.transactions[2].data).toBe('2026-10-01');
+
     // Sum must equal exact total amount (100.00)
     const sum = result.transactions.reduce((acc, curr) => acc + curr.valor, 0);
     expect(Number(sum.toFixed(2))).toBe(100.0);
+  });
+
+  it('should correctly calculate subsequent installment dates across year boundaries and month-ends', async () => {
+    vi.mocked(DataService.insert).mockImplementation(async (table, record: any) => {
+      if (table === 'grupos_parcelamento') {
+        return {
+          id: 'grp2',
+          descricao: 'TV OLED',
+          total_parcelas: 4,
+          valor_total: 4000,
+          created_at: new Date().toISOString(),
+        } as any;
+      }
+      return { id: 'tx_' + Math.random(), ...record } as any;
+    });
+
+    const result = await InstallmentService.createInstallmentPurchase(
+      {
+        tipo: TransactionType.DESPESA,
+        valor: 4000,
+        data: '2026-11-30',
+        descricao: 'TV OLED',
+        status: TransactionStatus.CONCLUIDO,
+      },
+      4
+    );
+
+    expect(result.transactions).toHaveLength(4);
+    expect(result.transactions[0].data).toBe('2026-11-30');
+    expect(result.transactions[1].data).toBe('2026-12-30');
+    expect(result.transactions[2].data).toBe('2027-01-30'); // Year boundary crossover
+    expect(result.transactions[3].data).toBe('2027-02-28'); // Feb 28 clamping in 2027
   });
 });

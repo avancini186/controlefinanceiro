@@ -21,6 +21,12 @@ import {
   Eye,
   EyeOff,
   Search,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  TrendingUp,
+  TrendingDown,
+  Wallet,
 } from 'lucide-react';
 
 interface TransactionFilterState {
@@ -45,6 +51,34 @@ export const TransactionsView: React.FC = () => {
 
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Current System Month (YYYY-MM)
+  const now = new Date();
+  const currentSystemMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentSystemMonth);
+  const [filterByMonthActive, setFilterByMonthActive] = useState<boolean>(true);
+
+  const handlePrevMonth = () => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    const prevM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(prevM);
+  };
+
+  const handleNextMonth = () => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    const nextM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(nextM);
+  };
+
+  const formatMonthName = (yearMonth: string) => {
+    const [y, m] = yearMonth.split('-').map(Number);
+    const d = new Date(y, m - 1, 1);
+    const name = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(d);
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  };
 
   // Table Preferences Persistence via localStorage
   const { preferences, setSearchQuery, setSort, toggleColumnVisibility, setFilters, resetPreferences } =
@@ -104,6 +138,13 @@ export const TransactionsView: React.FC = () => {
 
   // Filter & Search Logic
   const filteredTransactions = transactions.filter((tx) => {
+    // Filter by selected month if month filter is active
+    if (filterByMonthActive && selectedMonth) {
+      if (!tx.data.startsWith(selectedMonth)) {
+        return false;
+      }
+    }
+
     // Search Query across descrição, observação, categoria, conta, cartão
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -131,6 +172,17 @@ export const TransactionsView: React.FC = () => {
 
     return true;
   });
+
+  // Monthly Metrics Calculations
+  const totalReceitas = filteredTransactions
+    .filter((t) => t.tipo === 'RECEITA')
+    .reduce((acc, t) => acc + t.valor, 0);
+
+  const totalDespesas = filteredTransactions
+    .filter((t) => t.tipo === 'DESPESA')
+    .reduce((acc, t) => acc + t.valor, 0);
+
+  const saldoMes = totalReceitas - totalDespesas;
 
   // Sorting Logic
   const sortedTransactions = [...filteredTransactions].sort((a, b) => {
@@ -246,6 +298,118 @@ export const TransactionsView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Month Navigator Header Bar */}
+      <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              Visualizando Mês: <span className="text-indigo-400 font-extrabold">{formatMonthName(selectedMonth)}</span>
+            </h4>
+            <p className="text-xs text-slate-400">
+              {filterByMonthActive
+                ? `${sortedTransactions.length} movimentações encontradas neste mês`
+                : 'Exibindo movimentações de todos os meses'}
+            </p>
+          </div>
+        </div>
+
+        {/* Month Controls */}
+        <div className="flex items-center gap-2 bg-slate-950/70 border border-slate-800 p-1.5 rounded-xl">
+          <button
+            onClick={handlePrevMonth}
+            disabled={!filterByMonthActive}
+            className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors disabled:opacity-40"
+            title="Mês Anterior"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <input
+            type="month"
+            value={selectedMonth}
+            disabled={!filterByMonthActive}
+            onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
+            className="bg-transparent text-xs font-semibold text-slate-200 px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-40"
+          />
+
+          <button
+            onClick={handleNextMonth}
+            disabled={!filterByMonthActive}
+            className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors disabled:opacity-40"
+            title="Próximo Mês"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
+          <div className="w-px h-4 bg-slate-800 mx-1" />
+
+          {selectedMonth !== currentSystemMonth && filterByMonthActive && (
+            <button
+              onClick={() => setSelectedMonth(currentSystemMonth)}
+              className="px-2.5 py-1 text-xs bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-lg transition-colors font-medium"
+            >
+              Mês Atual
+            </button>
+          )}
+
+          <button
+            onClick={() => setFilterByMonthActive(!filterByMonthActive)}
+            className={`px-2.5 py-1 text-xs rounded-lg border transition-all font-medium ${
+              !filterByMonthActive
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 font-semibold'
+                : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+            }`}
+            title="Alternar entre mês selecionado e todas as transações"
+          >
+            {!filterByMonthActive ? 'Exibindo: Todos' : 'Ver Todos os Meses'}
+          </button>
+        </div>
+      </div>
+
+      {/* Month Summary Cards */}
+      {filterByMonthActive && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Receitas do Mês</p>
+              <p className="text-lg font-bold font-mono text-emerald-400 mt-1">{formatCurrency(totalReceitas)}</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Despesas do Mês</p>
+              <p className="text-lg font-bold font-mono text-rose-400 mt-1">{formatCurrency(totalDespesas)}</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+              <TrendingDown className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Saldo do Mês</p>
+              <p
+                className={`text-lg font-bold font-mono mt-1 ${
+                  saldoMes >= 0 ? 'text-indigo-400' : 'text-rose-400'
+                }`}
+              >
+                {formatCurrency(saldoMes)}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <Wallet className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-slate-100">Gerenciador de Transações</h3>

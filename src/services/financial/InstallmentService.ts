@@ -36,15 +36,25 @@ export class InstallmentService {
 
     // 2. Generate monthly transaction instances
     const createdTransactions: Transaction[] = [];
-    const baseDate = new Date(purchase.data);
+    const dateParts = purchase.data.split('-').map(Number);
+    const baseYear = dateParts[0] || new Date().getFullYear();
+    const baseMonth = (dateParts[1] || 1) - 1; // 0-indexed
+    const baseDay = dateParts[2] || 1;
 
     for (let i = 1; i <= totalParcelas; i++) {
-      const currentDate = new Date(baseDate);
-      currentDate.setMonth(baseDate.getMonth() + (i - 1));
+      let targetYear = baseYear;
+      let targetMonth = baseMonth + (i - 1);
+      targetYear += Math.floor(targetMonth / 12);
+      targetMonth = ((targetMonth % 12) + 12) % 12;
+
+      // Handle month-end clamping (e.g., Jan 31 -> Feb 28/29)
+      const maxDaysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const targetDay = Math.min(baseDay, maxDaysInTargetMonth);
+
+      const formattedDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
 
       // Add rounding difference to the first installment
       const val = i === 1 ? Number((valorParcela + diferencaArredondamento).toFixed(2)) : valorParcela;
-      const formattedDate = currentDate.toISOString().split('T')[0];
 
       const tx = await TransactionService.create({
         ...purchase,
