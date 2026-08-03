@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Table } from '../../components/ui/Table';
 import type { Column } from '../../components/ui/Table';
@@ -16,6 +16,7 @@ import {
 
 export const OFXImportView: React.FC = () => {
   const { accounts, refreshData } = useFinancialData();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedTransactions, setParsedTransactions] = useState<OFXParsedTransaction[]>([]);
@@ -72,6 +73,7 @@ export const OFXImportView: React.FC = () => {
       alert('Erro ao ler arquivo OFX. Certifique-se de que é um formato válido.');
     } finally {
       setIsParsing(false);
+      e.target.value = '';
     }
   };
 
@@ -210,7 +212,10 @@ export const OFXImportView: React.FC = () => {
       {step === 'SELECT' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
-            <div className="p-8 text-center border-dashed border-2 border-indigo-500/30 bg-slate-900/40 rounded-2xl">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="p-8 text-center border-dashed border-2 border-indigo-500/30 hover:border-indigo-500/60 bg-slate-900/40 hover:bg-slate-900/60 transition-all rounded-2xl cursor-pointer"
+            >
               <div className="flex flex-col items-center justify-center space-y-4">
                 <div className="w-16 h-16 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
                   <FileText className="w-8 h-8" />
@@ -222,17 +227,25 @@ export const OFXImportView: React.FC = () => {
                   </p>
                 </div>
 
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".ofx,.OFX"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <Button variant="primary" size="md" isLoading={isParsing} icon={<UploadCloud className="w-4 h-4" />}>
-                    Escolher Arquivo OFX
-                  </Button>
-                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".ofx,.OFX,.xml"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <Button
+                  variant="primary"
+                  size="md"
+                  isLoading={isParsing}
+                  icon={<UploadCloud className="w-4 h-4" />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  Escolher Arquivo OFX
+                </Button>
               </div>
             </div>
           </div>
