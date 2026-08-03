@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { CreditCardModal } from './CreditCardModal';
 import { CreditCardService } from '../../services/financial/CreditCardService';
+import { CreditCardBillingService } from '../../services/financial/CreditCardBillingService';
 import type { CreditCard } from '../../types';
 import { CreditCard as CardIcon, Plus, Calendar, ShieldCheck, Edit2, Trash2 } from 'lucide-react';
 
@@ -76,6 +77,17 @@ export const CreditCardsView: React.FC = () => {
             const nextInvoice = card.faturaProxima || 0;
             const usedPercentage = Math.min(100, Math.round((currentInvoice / (card.limite || 1)) * 100));
 
+            const todayISO = new Date().toISOString().split('T')[0];
+            const currentBilling = CreditCardBillingService.calculateBillingPeriod(todayISO, card.diaFechamento, card.diaVencimento);
+            
+            let nextYear = currentBilling.faturaAno;
+            let nextMonth = currentBilling.faturaMes + 1;
+            if (nextMonth > 12) {
+              nextMonth = 1;
+              nextYear += 1;
+            }
+            const nextCompetencia = `${nextYear}-${String(nextMonth).padStart(2, '0')}`;
+
             return (
               <div
                 key={card.id}
@@ -120,13 +132,13 @@ export const CreditCardsView: React.FC = () => {
                 {/* Invoices Breakdown */}
                 <div className="grid grid-cols-2 gap-3 p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl">
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Fatura Atual (Aberta)</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">Fatura Atual ({currentBilling.faturaCompetencia})</span>
                     <span className="text-sm font-bold font-mono text-amber-400">
                       {formatCurrency(currentInvoice)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Próxima Fatura</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">Próxima Fatura ({nextCompetencia})</span>
                     <span className="text-sm font-bold font-mono text-indigo-300">
                       {formatCurrency(nextInvoice)}
                     </span>

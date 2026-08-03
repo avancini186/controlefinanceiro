@@ -1,6 +1,7 @@
 import { TransactionService } from './TransactionService';
 import { AccountService } from './AccountService';
 import { CreditCardService } from './CreditCardService';
+import { CreditCardBillingService } from './CreditCardBillingService';
 import type { BalanceSummary } from '../../types';
 import { TransactionType, TransactionStatus } from '../../types/enums';
 
@@ -36,46 +37,23 @@ export class BalanceService {
     return Number(balance.toFixed(2));
   }
 
+
+
   /**
-   * Calculates the date range [startISO, endISO] for current and next invoices based on diaFechamento.
+   * Calculates the total sum for a credit card invoice of a specific competencia (YYYY-MM).
    */
-  private static getInvoiceDateRanges(diaFechamento: number, refDate = new Date()) {
-    const year = refDate.getFullYear();
-    const month = refDate.getMonth(); // 0-indexed
-    const day = refDate.getDate();
+  static async calculateInvoiceByCompetencia(cartaoId: string, faturaCompetencia: string): Promise<number> {
+    const transactions = await TransactionService.getAll({ cartaoId });
+    const sum = transactions
+      .filter(
+        (tx) =>
+          (tx.status === TransactionStatus.CONCLUIDO || tx.status === TransactionStatus.PENDENTE) &&
+          (tx.faturaCompetencia === faturaCompetencia ||
+            (!tx.faturaCompetencia && tx.data.startsWith(faturaCompetencia)))
+      )
+      .reduce((acc, curr) => acc + curr.valor, 0);
 
-    // Closing date in current reference month
-    const closingCurrentMonth = new Date(year, month, diaFechamento, 23, 59, 59, 999);
-
-    let currentStart: Date;
-    let currentEnd: Date;
-    let nextStart: Date;
-    let nextEnd: Date;
-
-    if (day <= diaFechamento) {
-      // Current invoice is for current month
-      currentStart = new Date(year, month - 1, diaFechamento + 1, 0, 0, 0, 0);
-      currentEnd = closingCurrentMonth;
-
-      nextStart = new Date(year, month, diaFechamento + 1, 0, 0, 0, 0);
-      nextEnd = new Date(year, month + 1, diaFechamento, 23, 59, 59, 999);
-    } else {
-      // Current invoice is already for next month
-      currentStart = new Date(year, month, diaFechamento + 1, 0, 0, 0, 0);
-      currentEnd = new Date(year, month + 1, diaFechamento, 23, 59, 59, 999);
-
-      nextStart = new Date(year, month + 1, diaFechamento + 1, 0, 0, 0, 0);
-      nextEnd = new Date(year, month + 2, diaFechamento, 23, 59, 59, 999);
-    }
-
-    const toISODate = (d: Date) => d.toISOString().split('T')[0];
-
-    return {
-      currentStart: toISODate(currentStart),
-      currentEnd: toISODate(currentEnd),
-      nextStart: toISODate(nextStart),
-      nextEnd: toISODate(nextEnd),
-    };
+    return Number(sum.toFixed(2));
   }
 
   /**
@@ -85,19 +63,9 @@ export class BalanceService {
     const card = await CreditCardService.getById(cartaoId);
     if (!card) return 0;
 
-    const ranges = this.getInvoiceDateRanges(card.diaFechamento, refDate);
-    const transactions = await TransactionService.getAll({ cartaoId });
-
-    const currentInvoiceSum = transactions
-      .filter(
-        (tx) =>
-          (tx.status === TransactionStatus.CONCLUIDO || tx.status === TransactionStatus.PENDENTE) &&
-          tx.data >= ranges.currentStart &&
-          tx.data <= ranges.currentEnd
-      )
-      .reduce((acc, curr) => acc + curr.valor, 0);
-
-    return Number(currentInvoiceSum.toFixed(2));
+    const refISO = refDate.toISOString().split('T')[0];
+    const currentBilling = CreditCardBillingService.calculateBillingPeriod(refISO, card.diaFechamento, card.diaVencimento);
+    return this.calculateInvoiceByCompetencia(cartaoId, currentBilling.faturaCompetencia);
   }
 
   /**
@@ -107,19 +75,18 @@ export class BalanceService {
     const card = await CreditCardService.getById(cartaoId);
     if (!card) return 0;
 
-    const ranges = this.getInvoiceDateRanges(card.diaFechamento, refDate);
-    const transactions = await TransactionService.getAll({ cartaoId });
+    const refISO = refDate.toISOString().split('T')[0];
+    const currentBilling = CreditCardBillingService.calculateBillingPeriod(refISO, card.diaFechamento, card.diaVencimento);
 
-    const nextInvoiceSum = transactions
-      .filter(
-        (tx) =>
-          (tx.status === TransactionStatus.CONCLUIDO || tx.status === TransactionStatus.PENDENTE) &&
-          tx.data >= ranges.nextStart &&
-          tx.data <= ranges.nextEnd
-      )
-      .reduce((acc, curr) => acc + curr.valor, 0);
+    let nextYear = currentBilling.faturaAno;
+    let nextMonth = currentBilling.faturaMes + 1;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+    const nextCompetencia = `${nextYear}-${String(nextMonth).padStart(2, '0')}`;
 
-    return Number(nextInvoiceSum.toFixed(2));
+    return this.calculateInvoiceByCompetencia(cartaoId, nextCompetencia);
   }
 
   /**

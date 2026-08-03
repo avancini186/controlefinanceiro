@@ -103,6 +103,10 @@ export interface Transaction {
   importHash?: string | null;
   conciliada?: boolean;
   dataConciliacao?: string | null;
+  faturaCompetencia?: string | null;
+  faturaAno?: number | null;
+  faturaMes?: number | null;
+  faturaVencimento?: string | null;
   createdAt: string;
 
   // Joined rich relationships

@@ -197,6 +197,10 @@ export interface Database {
           import_hash: string | null
           conciliada: boolean
           data_conciliacao: string | null
+          fatura_competencia: string | null
+          fatura_ano: number | null
+          fatura_mes: number | null
+          fatura_vencimento: string | null
           created_at: string
         }
         Insert: {
@@ -218,6 +222,10 @@ export interface Database {
           import_hash?: string | null
           conciliada?: boolean
           data_conciliacao?: string | null
+          fatura_competencia?: string | null
+          fatura_ano?: number | null
+          fatura_mes?: number | null
+          fatura_vencimento?: string | null
           created_at?: string
         }
         Update: {
@@ -239,6 +247,10 @@ export interface Database {
           import_hash?: string | null
           conciliada?: boolean
           data_conciliacao?: string | null
+          fatura_competencia?: string | null
+          fatura_ano?: number | null
+          fatura_mes?: number | null
+          fatura_vencimento?: string | null
           created_at?: string
         }
       }

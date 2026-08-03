@@ -43,6 +43,10 @@ describe('BalanceService - Unit Tests', () => {
         import_hash: null,
         conciliada: false,
         data_conciliacao: null,
+        fatura_competencia: null,
+        fatura_ano: null,
+        fatura_mes: null,
+        fatura_vencimento: null,
         created_at: new Date().toISOString(),
       },
       {
@@ -64,6 +68,10 @@ describe('BalanceService - Unit Tests', () => {
         import_hash: null,
         conciliada: false,
         data_conciliacao: null,
+        fatura_competencia: null,
+        fatura_ano: null,
+        fatura_mes: null,
+        fatura_vencimento: null,
         created_at: new Date().toISOString(),
       },
     ]);
@@ -106,6 +114,10 @@ describe('BalanceService - Unit Tests', () => {
         import_hash: null,
         conciliada: false,
         data_conciliacao: null,
+        fatura_competencia: null,
+        fatura_ano: null,
+        fatura_mes: null,
+        fatura_vencimento: null,
         created_at: new Date().toISOString(),
       },
     ]);

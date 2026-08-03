@@ -1,4 +1,6 @@
 import { DataService } from '../DataService';
+import { CreditCardService } from './CreditCardService';
+import { CreditCardBillingService } from './CreditCardBillingService';
 import type { Transaction, TransactionSplit } from '../../types';
 import { TransactionType, TransactionStatus, CategoryType } from '../../types/enums';
 
@@ -29,6 +31,10 @@ export class TransactionService {
       importHash: row.import_hash,
       conciliada: row.conciliada ?? false,
       dataConciliacao: row.data_conciliacao,
+      faturaCompetencia: row.fatura_competencia,
+      faturaAno: row.fatura_ano,
+      faturaMes: row.fatura_mes,
+      faturaVencimento: row.fatura_vencimento,
       createdAt: row.created_at,
       category: row.category ? {
         id: row.category.id,
@@ -111,6 +117,25 @@ export class TransactionService {
       }
     }
 
+    let faturaCompetencia = transaction.faturaCompetencia || null;
+    let faturaAno = transaction.faturaAno || null;
+    let faturaMes = transaction.faturaMes || null;
+    let faturaVencimento = transaction.faturaVencimento || null;
+
+    if (transaction.cartaoId && !faturaCompetencia) {
+      const card = await CreditCardService.getById(transaction.cartaoId);
+      if (card) {
+        const billing = transaction.numeroParcela && transaction.numeroParcela > 1
+          ? CreditCardBillingService.calculateInstallmentBillingPeriod(transaction.data, transaction.numeroParcela, card.diaFechamento, card.diaVencimento)
+          : CreditCardBillingService.calculateBillingPeriod(transaction.data, card.diaFechamento, card.diaVencimento);
+
+        faturaCompetencia = billing.faturaCompetencia;
+        faturaAno = billing.faturaAno;
+        faturaMes = billing.faturaMes;
+        faturaVencimento = billing.faturaVencimento;
+      }
+    }
+
     const created = await DataService.insert('transacoes', {
       tipo: transaction.tipo,
       valor: transaction.valor,
@@ -127,6 +152,10 @@ export class TransactionService {
       transfer_group_id: transaction.transferGroupId || null,
       direcao_transferencia: transaction.direcaoTransferencia || null,
       import_hash: transaction.importHash || null,
+      fatura_competencia: faturaCompetencia,
+      fatura_ano: faturaAno,
+      fatura_mes: faturaMes,
+      fatura_vencimento: faturaVencimento,
     });
 
     let createdSplits: TransactionSplit[] = [];
