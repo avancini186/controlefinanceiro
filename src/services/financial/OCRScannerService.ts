@@ -80,8 +80,8 @@ export class OCRScannerService {
     // 1. Extract Amount (Valor)
     let valor: number | null = null;
     const valuePatterns = [
-      /(?:VALOR|TOTAL|PAGO|VALOR PAGO|VALOR DA TRANSAÇÃO|QUANTIA|R\$)\s*[:=]?\s*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[\.,]\d{2})/i,
-      /R\$\s*(\d+[\.,]\d{2})/i,
+      /(?:VALOR|TOTAL|PAGO|VALOR PAGO|VALOR DA TRANSAÇÃO|QUANTIA|R\$)\s*[:=]?\s*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})/i,
+      /R\$\s*(\d+[.,]\d{2})/i,
       /(\d{1,3}(?:\.\d{3})*,\d{2})/
     ];
 
@@ -129,8 +129,8 @@ export class OCRScannerService {
     // 3. Extract Merchant / Establishment (Estabelecimento)
     let estabelecimento: string | null = null;
     const merchantPatterns = [
-      /(?:RECEBEDOR|DESTINATÁRIO|PAGO PARA|FAVORECIDO|EMPRESA|LOJA|ESTABELECIMENTO)\s*[:=]?\s*([A-Za-z0-9\s\.&áéíóúãõçÁÉÍÓÚÃÕÇ]{3,40})/i,
-      /(?:COMPROVANTE DE PAGAMENTO|COMPROVANTE PIX)\s*[-:]?\s*([A-Za-z0-9\s\.&áéíóúãõçÁÉÍÓÚÃÕÇ]{3,30})/i,
+      /(?:RECEBEDOR|DESTINATÁRIO|PAGO PARA|FAVORECIDO|EMPRESA|LOJA|ESTABELECIMENTO)\s*[:=]?\s*([A-Za-z0-9\s.&áéíóúãõçÁÉÍÓÚÃÕÇ]{3,40})/i,
+      /(?:COMPROVANTE DE PAGAMENTO|COMPROVANTE PIX)\s*[-:]?\s*([A-Za-z0-9\s.&áéíóúãõçÁÉÍÓÚÃÕÇ]{3,30})/i,
     ];
 
     for (const pattern of merchantPatterns) {

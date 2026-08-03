@@ -46,7 +46,7 @@ export const BudgetCategoryModal: React.FC<BudgetCategoryModalProps> = ({
       limiteMensal: 500,
       anoMes: currentAnoMes,
     });
-  }, [categories, currentAnoMes, reset, isOpen]);
+  }, [categories, expenseCategories, currentAnoMes, reset, isOpen]);
 
   const onSubmit = async (data: BudgetCategoryFormData) => {
     try {
