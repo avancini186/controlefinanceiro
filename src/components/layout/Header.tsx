@@ -77,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({
           variant="primary"
           size="sm"
           icon={<Plus className="w-4 h-4" />}
-          onClick={openTransactionModal}
+          onClick={() => openTransactionModal()}
           aria-label="Nova transação (Ctrl+N)"
         >
           <span className="hidden md:inline">Nova Transação</span>

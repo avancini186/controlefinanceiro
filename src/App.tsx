@@ -24,6 +24,7 @@ const AppContent: React.FC = () => {
     activeTab,
     setActiveTab,
     isTransactionModalOpen,
+    editingTransaction,
     closeTransactionModal,
     isTransferModalOpen,
     closeTransferModal,
@@ -80,6 +81,7 @@ const AppContent: React.FC = () => {
         isOpen={isTransactionModalOpen}
         onClose={closeTransactionModal}
         onSuccess={refreshData}
+        transactionToEdit={editingTransaction}
       />
       <TransferModal
         isOpen={isTransferModalOpen}

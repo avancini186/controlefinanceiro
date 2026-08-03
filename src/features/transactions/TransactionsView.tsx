@@ -27,6 +27,7 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
+  Pencil,
 } from 'lucide-react';
 
 interface TransactionFilterState {
@@ -285,13 +286,22 @@ export const TransactionsView: React.FC = () => {
       sortable: false,
       className: 'text-center',
       cell: (tx) => (
-        <button
-          onClick={() => setTxToDelete(tx)}
-          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
-          title="Excluir transação"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center justify-center gap-1">
+          <button
+            onClick={() => openTransactionModal(tx)}
+            className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors"
+            title="Editar transação"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setTxToDelete(tx)}
+            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+            title="Excluir transação"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       ),
     },
   ];
@@ -455,7 +465,7 @@ export const TransactionsView: React.FC = () => {
             Colunas
           </Button>
 
-          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openTransactionModal}>
+          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openTransactionModal()}>
             Nova Transação
           </Button>
         </div>

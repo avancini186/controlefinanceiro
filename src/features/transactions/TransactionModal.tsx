@@ -9,6 +9,7 @@ import { InstallmentService } from '../../services/financial/InstallmentService'
 import { ClassificationService, type CategorySuggestion } from '../../services/financial/ClassificationService';
 import { NotificationService } from '../../services/NotificationService';
 import { TransactionType, TransactionStatus } from '../../types/enums';
+import type { Transaction } from '../../types';
 import { OCRScannerModal } from '../ocr/OCRScannerModal';
 import type { OCRScanResult } from '../../services/financial/OCRScannerService';
 import { SplitTransactionEditor, type SplitRow } from './components/SplitTransactionEditor';
@@ -19,9 +20,15 @@ export interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  transactionToEdit?: Transaction | null;
 }
 
-export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const TransactionModal: React.FC<TransactionModalProps> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  transactionToEdit,
+}) => {
   const { categories, accounts, creditCards, refreshData } = useFinancialData();
 
   const [transactionType, setTransactionType] = useState<TransactionType>(TransactionType.DESPESA);
@@ -54,21 +61,49 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
 
   useEffect(() => {
     if (isOpen) {
-      setAccountId(accounts[0]?.id || '');
-      setCardId(creditCards[0]?.id || '');
-      setCategoryId(categories[0]?.id || '');
-      setDate(new Date().toISOString().split('T')[0]);
-      setDescription('');
-      setObservacao('');
-      setTotalAmount(100);
-      setIsSplitMode(false);
-      setIsInstallment(false);
-      setInstallmentsCount(2);
-      setSplits([]);
-      setFormError(null);
-      setSuggestions([]);
+      if (transactionToEdit) {
+        setTransactionType(transactionToEdit.tipo || TransactionType.DESPESA);
+        setPaymentMethod(transactionToEdit.cartaoId ? 'CARTAO' : 'CONTA');
+        setTotalAmount(transactionToEdit.valor);
+        setDescription(transactionToEdit.descricao);
+        setObservacao(transactionToEdit.observacao || '');
+        setDate(transactionToEdit.data);
+        setAccountId(transactionToEdit.contaId || accounts[0]?.id || '');
+        setCardId(transactionToEdit.cartaoId || creditCards[0]?.id || '');
+        setCategoryId(transactionToEdit.categoriaId || categories[0]?.id || '');
+        const hasSplits = Boolean(transactionToEdit.splits && transactionToEdit.splits.length > 0);
+        setIsSplitMode(hasSplits);
+        setSplits(
+          hasSplits
+            ? (transactionToEdit.splits || []).map((s) => ({
+                id: s.id,
+                categoryId: s.categoryId,
+                amount: s.amount,
+                description: s.description || '',
+              }))
+            : []
+        );
+        setIsInstallment(Boolean(transactionToEdit.grupoParcelamentoId));
+        setInstallmentsCount(transactionToEdit.totalParcelas || 2);
+        setFormError(null);
+        setSuggestions([]);
+      } else {
+        setAccountId(accounts[0]?.id || '');
+        setCardId(creditCards[0]?.id || '');
+        setCategoryId(categories[0]?.id || '');
+        setDate(new Date().toISOString().split('T')[0]);
+        setDescription('');
+        setObservacao('');
+        setTotalAmount(100);
+        setIsSplitMode(false);
+        setIsInstallment(false);
+        setInstallmentsCount(2);
+        setSplits([]);
+        setFormError(null);
+        setSuggestions([]);
+      }
     }
-  }, [isOpen, accounts, creditCards, categories]);
+  }, [isOpen, transactionToEdit, accounts, creditCards, categories]);
 
   // Live Category Intelligence Suggestion
   useEffect(() => {
@@ -136,7 +171,35 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
 
     setIsSubmitting(true);
     try {
-      if (isInstallment && installmentsCount > 1) {
+      if (transactionToEdit) {
+        // Update existing transaction
+        const formattedSplits = isSplitMode
+          ? splits.map((s) => ({
+              id: s.id,
+              transactionId: transactionToEdit.id,
+              categoryId: s.categoryId,
+              amount: s.amount,
+              description: s.description,
+            }))
+          : [];
+
+        await TransactionService.update(
+          transactionToEdit.id,
+          {
+            tipo: transactionType,
+            valor: totalAmount,
+            data: date,
+            categoriaId: isSplitMode ? null : categoryId || null,
+            contaId: paymentMethod === 'CONTA' ? accountId || null : null,
+            cartaoId: paymentMethod === 'CARTAO' ? cardId || null : null,
+            descricao: description,
+            observacao: observacao || null,
+          },
+          formattedSplits
+        );
+
+        NotificationService.success('Transação atualizada com sucesso!');
+      } else if (isInstallment && installmentsCount > 1) {
         // Create Installment Series
         await InstallmentService.createInstallmentPurchase(
           {
@@ -152,6 +215,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
           },
           installmentsCount
         );
+        NotificationService.success('Transação cadastrada com sucesso!');
       } else {
         // Create Single or Split Transaction
         const formattedSplits = isSplitMode
@@ -172,9 +236,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
           },
           formattedSplits
         );
+        NotificationService.success('Transação cadastrada com sucesso!');
       }
 
-      NotificationService.success('Transação cadastrada com sucesso!');
       await refreshData();
       if (onSuccess) onSuccess();
       onClose();
@@ -193,8 +257,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        title="Nova Transação"
-        subtitle="Cadastre movimentações simples, parceladas ou divididas por categoria"
+        title={transactionToEdit ? 'Editar Transação' : 'Nova Transação'}
+        subtitle={
+          transactionToEdit
+            ? 'Atualize os dados da movimentação selecionada'
+            : 'Cadastre movimentações simples, parceladas ou divididas por categoria'
+        }
         maxWidth="lg"
         footer={
           <>
@@ -207,7 +275,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
               onClick={handleSubmit}
               isLoading={isSubmitting}
             >
-              Salvar Transação
+              {transactionToEdit ? 'Salvar Alterações' : 'Salvar Transação'}
             </Button>
           </>
         }

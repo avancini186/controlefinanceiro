@@ -152,7 +152,7 @@ export const DashboardView: React.FC = () => {
           <Button variant="outline" icon={<ArrowLeftRight className="w-4 h-4" />} onClick={openTransferModal}>
             Transferência
           </Button>
-          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openTransactionModal}>
+          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openTransactionModal()}>
             Nova Transação
           </Button>
         </div>

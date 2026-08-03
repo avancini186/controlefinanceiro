@@ -15,7 +15,8 @@ export interface AppContextType {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   isTransactionModalOpen: boolean;
-  openTransactionModal: () => void;
+  editingTransaction: Transaction | null;
+  openTransactionModal: (txToEdit?: Transaction) => void;
   closeTransactionModal: () => void;
   isTransferModalOpen: boolean;
   openTransferModal: () => void;
@@ -48,7 +49,18 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+
+  const openTransactionModal = useCallback((txToEdit?: Transaction) => {
+    setEditingTransaction(txToEdit || null);
+    setIsTransactionModalOpen(true);
+  }, []);
+
+  const closeTransactionModal = useCallback(() => {
+    setIsTransactionModalOpen(false);
+    setEditingTransaction(null);
+  }, []);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,8 +131,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeTab,
         setActiveTab,
         isTransactionModalOpen,
-        openTransactionModal: () => setIsTransactionModalOpen(true),
-        closeTransactionModal: () => setIsTransactionModalOpen(false),
+        editingTransaction,
+        openTransactionModal,
+        closeTransactionModal,
         isTransferModalOpen,
         openTransferModal: () => setIsTransferModalOpen(true),
         closeTransferModal: () => setIsTransferModalOpen(false),

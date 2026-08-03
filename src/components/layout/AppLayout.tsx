@@ -16,6 +16,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle 
     activeTab,
     setActiveTab,
     isTransactionModalOpen,
+    editingTransaction,
     closeTransactionModal,
     isTransferModalOpen,
     closeTransferModal,
@@ -34,6 +35,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle 
         isOpen={isTransactionModalOpen}
         onClose={closeTransactionModal}
         onSuccess={refreshData}
+        transactionToEdit={editingTransaction}
       />
       <TransferModal
         isOpen={isTransferModalOpen}
