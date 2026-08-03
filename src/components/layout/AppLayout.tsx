@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useApp } from '../../context/AppContext';
@@ -12,6 +12,7 @@ interface AppLayoutProps {
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const {
     activeTab,
     setActiveTab,
@@ -25,9 +26,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle 
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans antialiased overflow-hidden">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isOpenMobile={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
+      />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header title={title} subtitle={subtitle} />
+        <Header
+          title={title}
+          subtitle={subtitle}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        />
         <main className="flex-1 overflow-y-auto p-6 md:p-8">{children}</main>
       </div>
 

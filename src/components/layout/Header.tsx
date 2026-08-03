@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Search, Plus, ArrowLeftRight } from 'lucide-react';
+import { Search, Plus, ArrowLeftRight, Menu } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useApp } from '../../context/AppContext';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
@@ -9,6 +9,7 @@ interface HeaderProps {
   subtitle?: string;
   globalSearchQuery?: string;
   onGlobalSearchChange?: (query: string) => void;
+  onOpenMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   globalSearchQuery = '',
   onGlobalSearchChange,
+  onOpenMobileMenu,
 }) => {
   const { openTransactionModal, openTransferModal, isTransactionModalOpen, isTransferModalOpen, closeTransactionModal, closeTransferModal } = useApp();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -39,9 +41,20 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="h-20 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md px-6 md:px-8 flex items-center justify-between gap-4 sticky top-0 z-30">
-      <div>
-        <h2 className="text-xl font-bold text-slate-100 tracking-tight">{title}</h2>
-        {subtitle && <p className="text-xs text-slate-400 font-medium">{subtitle}</p>}
+      <div className="flex items-center gap-3">
+        {onOpenMobileMenu && (
+          <button
+            onClick={onOpenMobileMenu}
+            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors"
+            aria-label="Abrir menu"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        )}
+        <div>
+          <h2 className="text-xl font-bold text-slate-100 tracking-tight">{title}</h2>
+          {subtitle && <p className="text-xs text-slate-400 font-medium">{subtitle}</p>}
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
