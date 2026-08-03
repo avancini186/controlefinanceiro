@@ -42,7 +42,14 @@ export class CSVImportService {
   /**
    * Parses raw CSV text using specified column mapping definitions.
    */
-  static parseCSV(csvContent: string, mapping: CSVColumnMapping): { headers: string[]; rows: CSVParsedRow[] } {
+  static parseCSV(
+    csvContent: string,
+    mapping: CSVColumnMapping,
+    options?: { isCreditCard?: boolean; importCardCredits?: boolean }
+  ): { headers: string[]; rows: CSVParsedRow[] } {
+    const isCreditCard = options?.isCreditCard ?? false;
+    const importCardCredits = options?.importCardCredits ?? false;
+
     const delimiter = mapping.delimitador || ',';
     const lines = csvContent
       .split(/\r?\n/)
@@ -83,12 +90,29 @@ export class CSVImportService {
       const formattedDate = this.parseFormattedDate(rawDate, mapping.formatoData);
 
       let tipo: TransactionType = numVal < 0 ? TransactionType.DESPESA : TransactionType.RECEITA;
+      let isCreditIgnored = false;
+      let selected = true;
 
       if (idxTipo !== -1 && colTokens[idxTipo]) {
         const tStr = colTokens[idxTipo].toLowerCase();
         if (tStr.includes('rec') || tStr.includes('cred') || tStr.includes('ent')) {
           tipo = TransactionType.RECEITA;
         } else if (tStr.includes('desp') || tStr.includes('deb') || tStr.includes('sai')) {
+          tipo = TransactionType.DESPESA;
+        }
+      }
+
+      if (isCreditCard) {
+        // Rule for Credit Card:
+        // Value > 0 -> Purchase -> DESPESA
+        // Value <= 0 or Credit transaction -> Refund/Invoice payment -> Ignored by default unless importCardCredits is true
+        if (numVal <= 0 || tipo === TransactionType.RECEITA) {
+          if (!importCardCredits) {
+            isCreditIgnored = true;
+            selected = false;
+          }
+          tipo = TransactionType.RECEITA;
+        } else {
           tipo = TransactionType.DESPESA;
         }
       }
@@ -102,7 +126,8 @@ export class CSVImportService {
         tipo,
         hash,
         isDuplicate: false,
-        selected: true,
+        selected,
+        isCreditIgnored,
       });
     }
 
@@ -130,7 +155,7 @@ export class CSVImportService {
       return {
         ...r,
         isDuplicate: isDup,
-        selected: !isDup,
+        selected: isDup ? false : r.selected,
       };
     });
   }
@@ -140,12 +165,16 @@ export class CSVImportService {
    */
   static async importTransactions(
     selectedRows: CSVParsedRow[],
-    contaId: string,
+    target: string | { id: string; type: 'CONTA' | 'CARTAO' },
     filename: string
   ): Promise<CSVImportRecord> {
     if (selectedRows.length === 0) {
       throw new Error('Nenhuma transação selecionada para importação.');
     }
+
+    const targetObj = typeof target === 'string'
+      ? { id: target, type: 'CONTA' as const }
+      : target;
 
     let totalCreditos = 0;
     let totalDebitos = 0;
@@ -161,7 +190,8 @@ export class CSVImportService {
         tipo: r.tipo,
         valor: r.valor,
         data: r.data,
-        contaId,
+        contaId: targetObj.type === 'CONTA' ? targetObj.id : undefined,
+        cartaoId: targetObj.type === 'CARTAO' ? targetObj.id : undefined,
         categoriaId: r.categoriaId || undefined,
         descricao: r.descricao,
         status: TransactionStatus.CONCLUIDO,
@@ -172,7 +202,8 @@ export class CSVImportService {
     // Record import history
     const historyRecord = await DataService.insert('importacoes_csv', {
       nome_arquivo: filename,
-      conta_id: contaId,
+      conta_id: targetObj.type === 'CONTA' ? targetObj.id : null,
+      cartao_id: targetObj.type === 'CARTAO' ? targetObj.id : null,
       total_transacoes: selectedRows.length,
       valor_total_creditos: Number(totalCreditos.toFixed(2)),
       valor_total_debitos: Number(totalDebitos.toFixed(2)),
@@ -182,6 +213,7 @@ export class CSVImportService {
       id: historyRecord.id,
       nomeArquivo: historyRecord.nome_arquivo,
       contaId: historyRecord.conta_id,
+      cartaoId: historyRecord.cartao_id,
       totalTransacoes: historyRecord.total_transacoes,
       valorTotalCreditos: Number(historyRecord.valor_total_creditos),
       valorTotalDebitos: Number(historyRecord.valor_total_debitos),
@@ -238,14 +270,15 @@ export class CSVImportService {
   }
 
   /**
-   * Retrieves full CSV import history with account details.
+   * Retrieves full CSV import history with account and credit card details.
    */
   static async getImportHistory(): Promise<CSVImportRecord[]> {
     const { data, error } = await supabase
       .from('importacoes_csv')
       .select(`
         *,
-        account:contas!conta_id(*)
+        account:contas!conta_id(*),
+        creditCard:cartoes!cartao_id(*)
       `)
       .order('created_at', { ascending: false });
 
@@ -255,6 +288,7 @@ export class CSVImportService {
       id: row.id,
       nomeArquivo: row.nome_arquivo,
       contaId: row.conta_id,
+      cartaoId: row.cartao_id,
       totalTransacoes: row.total_transacoes,
       valorTotalCreditos: Number(row.valor_total_creditos),
       valorTotalDebitos: Number(row.valor_total_debitos),
@@ -269,6 +303,17 @@ export class CSVImportService {
         icone: row.account.icone,
         ativa: row.account.ativa,
         createdAt: row.account.created_at,
+      } : undefined,
+      creditCard: row.creditCard ? {
+        id: row.creditCard.id,
+        nome: row.creditCard.nome,
+        limite: Number(row.creditCard.limite),
+        diaFechamento: row.creditCard.dia_fechamento,
+        diaVencimento: row.creditCard.dia_vencimento,
+        cor: row.creditCard.cor,
+        icone: row.creditCard.icone,
+        ativo: row.creditCard.ativo,
+        createdAt: row.creditCard.created_at,
       } : undefined,
     }));
   }

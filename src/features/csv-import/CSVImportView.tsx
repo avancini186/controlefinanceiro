@@ -6,13 +6,14 @@ import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { CSVImportService } from '../../services/financial/CSVImportService';
 import type { CSVParsedRow, CSVMappingTemplate, CSVImportRecord, CSVColumnMapping } from '../../types';
-import { FileSpreadsheet, UploadCloud, CheckCircle2, AlertTriangle, History, CheckSquare, Square, Save } from 'lucide-react';
+import { FileSpreadsheet, UploadCloud, CheckCircle2, AlertTriangle, History, CheckSquare, Square, Save, CreditCard } from 'lucide-react';
 
 export const CSVImportView: React.FC = () => {
-  const { accounts, refreshData } = useFinancialData();
+  const { accounts, creditCards, refreshData } = useFinancialData();
 
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview'>('upload');
-  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const [selectedTarget, setSelectedTarget] = useState<string>('');
+  const [importCardCredits, setImportCardCredits] = useState<boolean>(false);
   const [filename, setFilename] = useState<string>('');
   const [rawCsvText, setRawCsvText] = useState<string>('');
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
@@ -40,6 +41,20 @@ export const CSVImportView: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const parseTargetInfo = (val: string) => {
+    if (val.startsWith('CARTAO:')) {
+      return { type: 'CARTAO' as const, id: val.replace('CARTAO:', '') };
+    }
+    if (val.startsWith('CONTA:')) {
+      return { type: 'CONTA' as const, id: val.replace('CONTA:', '') };
+    }
+    const isCard = creditCards.some((c) => c.id === val);
+    if (isCard) return { type: 'CARTAO' as const, id: val };
+    return { type: 'CONTA' as const, id: val };
+  };
+
+  const currentTargetInfo = parseTargetInfo(selectedTarget);
+
   const loadData = useCallback(async () => {
     try {
       const [tmplList, histList] = await Promise.all([
@@ -55,10 +70,14 @@ export const CSVImportView: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    if (accounts.length > 0) {
-      setSelectedAccountId(accounts[0].id);
+    if (!selectedTarget) {
+      if (accounts.length > 0) {
+        setSelectedTarget(`CONTA:${accounts[0].id}`);
+      } else if (creditCards.length > 0) {
+        setSelectedTarget(`CARTAO:${creditCards[0].id}`);
+      }
     }
-  }, [accounts, loadData]);
+  }, [accounts, creditCards, loadData, selectedTarget]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -103,6 +122,7 @@ export const CSVImportView: React.FC = () => {
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleSelectTemplate = (templateId: string) => {
@@ -138,7 +158,12 @@ export const CSVImportView: React.FC = () => {
   const handleGeneratePreview = async () => {
     setErrorMsg(null);
     try {
-      const { rows } = CSVImportService.parseCSV(rawCsvText, mapping);
+      const targetInfo = parseTargetInfo(selectedTarget);
+      const { rows } = CSVImportService.parseCSV(rawCsvText, mapping, {
+        isCreditCard: targetInfo.type === 'CARTAO',
+        importCardCredits,
+      });
+
       if (rows.length === 0) {
         setErrorMsg('Nenhuma linha válida pôde ser lida com o mapeamento configurado.');
         return;
@@ -169,9 +194,10 @@ export const CSVImportView: React.FC = () => {
     setIsImporting(true);
     setErrorMsg(null);
     try {
+      const targetInfo = parseTargetInfo(selectedTarget);
       const record = await CSVImportService.importTransactions(
         parsedRows.filter((r) => r.selected),
-        selectedAccountId,
+        targetInfo,
         filename
       );
       setSuccessMsg(`Importação CSV realizada com sucesso! ${record.totalTransacoes || record.qtdTransacoes} transações criadas.`);
@@ -196,12 +222,17 @@ export const CSVImportView: React.FC = () => {
   const totalCreditos = selectedItems.filter((r) => r.tipo === 'RECEITA').reduce((a, b) => a + b.valor, 0);
   const totalDebitos = selectedItems.filter((r) => r.tipo === 'DESPESA').reduce((a, b) => a + b.valor, 0);
 
+  const destinationOptions = [
+    ...accounts.map((a) => ({ value: `CONTA:${a.id}`, label: `🏦 Conta: ${a.nome}` })),
+    ...creditCards.map((c) => ({ value: `CARTAO:${c.id}`, label: `💳 Cartão de Crédito: ${c.nome}` })),
+  ];
+
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-slate-100">Importação de Extrato CSV</h3>
-          <p className="text-xs text-slate-400">Importe arquivos CSV com mapeamento dinâmico de colunas e modelos salvos</p>
+          <p className="text-xs text-slate-400">Importe arquivos CSV com mapeamento dinâmico de colunas para contas ou cartões de crédito</p>
         </div>
       </div>
 
@@ -224,13 +255,45 @@ export const CSVImportView: React.FC = () => {
       {step === 'upload' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
-            <h4 className="font-semibold text-slate-100 text-sm">1. Conta de Destino</h4>
+            <h4 className="font-semibold text-slate-100 text-sm">1. Destino da Importação</h4>
             <Select
-              label="Conta Bancária"
-              value={selectedAccountId}
-              onChange={(e) => setSelectedAccountId(e.target.value)}
-              options={accounts.map((a) => ({ value: a.id, label: a.nome }))}
+              label="Conta ou Cartão de Destino"
+              value={selectedTarget}
+              onChange={(e) => setSelectedTarget(e.target.value)}
+              options={destinationOptions}
             />
+
+            {currentTargetInfo.type === 'CARTAO' && (
+              <div className="p-4 bg-slate-950/70 border border-indigo-500/30 rounded-xl space-y-3 animate-fade-in">
+                <span className="text-xs font-semibold text-slate-200 block flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-indigo-400" />
+                  Importar créditos e estornos na fatura?
+                </span>
+                <div className="space-y-2 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                    <input
+                      type="radio"
+                      name="importCardCredits"
+                      checked={importCardCredits === false}
+                      onChange={() => setImportCardCredits(false)}
+                      className="text-indigo-500 focus:ring-indigo-500 bg-slate-900 border-slate-700"
+                    />
+                    <span><strong>Não (Recomendado)</strong> — Importa apenas compras como despesas</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                    <input
+                      type="radio"
+                      name="importCardCredits"
+                      checked={importCardCredits === true}
+                      onChange={() => setImportCardCredits(true)}
+                      className="text-indigo-500 focus:ring-indigo-500 bg-slate-900 border-slate-700"
+                    />
+                    <span><strong>Sim</strong> — Importar estornos e pagamentos</span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="md:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
@@ -298,21 +361,21 @@ export const CSVImportView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Select
               label="Coluna de Data *"
-              value={mapping.colunaData}
+              value={mapping.colunaData || ''}
               onChange={(e) => setMapping({ ...mapping, colunaData: e.target.value })}
               options={detectedHeaders.map((h) => ({ value: h, label: h }))}
             />
 
             <Select
               label="Coluna de Descrição *"
-              value={mapping.colunaDescricao}
+              value={mapping.colunaDescricao || ''}
               onChange={(e) => setMapping({ ...mapping, colunaDescricao: e.target.value })}
               options={detectedHeaders.map((h) => ({ value: h, label: h }))}
             />
 
             <Select
               label="Coluna de Valor *"
-              value={mapping.colunaValor}
+              value={mapping.colunaValor || ''}
               onChange={(e) => setMapping({ ...mapping, colunaValor: e.target.value })}
               options={detectedHeaders.map((h) => ({ value: h, label: h }))}
             />
@@ -401,7 +464,7 @@ export const CSVImportView: React.FC = () => {
                   <tr
                     key={idx}
                     className={`hover:bg-slate-800/40 transition-colors ${
-                      row.isDuplicate ? 'opacity-50 bg-slate-950/40' : ''
+                      row.isDuplicate || row.isCreditIgnored ? 'opacity-50 bg-slate-950/40' : ''
                     }`}
                   >
                     <td className="p-3 text-center">
@@ -421,7 +484,11 @@ export const CSVImportView: React.FC = () => {
                     <td className="p-3 font-mono text-slate-300">{row.data}</td>
                     <td className="p-3 font-semibold text-slate-100">{row.descricao}</td>
                     <td className="p-3">
-                      {row.isDuplicate ? (
+                      {row.isCreditIgnored ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                          Estorno/Crédito Ignorado (Cartão)
+                        </span>
+                      ) : row.isDuplicate ? (
                         <Badge variant="warning" size="sm">
                           Duplicada (Já existe no banco)
                         </Badge>
@@ -483,7 +550,7 @@ export const CSVImportView: React.FC = () => {
                   <div>
                     <span className="font-semibold text-slate-100 block">{record.nomeArquivo}</span>
                     <span className="text-[10px] text-slate-400 block mt-0.5">
-                      Conta: {record.account?.nome || record.contaId} • Data: {record.createdAt?.split('T')[0] || ''}
+                      {record.creditCard ? `Cartão: ${record.creditCard.nome}` : `Conta: ${record.account?.nome || record.contaId}`} • Data: {record.createdAt?.split('T')[0] || ''}
                     </span>
                   </div>
                 </div>

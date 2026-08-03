@@ -22,7 +22,13 @@ export class OFXImportService {
   /**
    * Parses raw OFX file content and extracts transactions.
    */
-  static parseOFX(ofxContent: string): OFXParsedTransaction[] {
+  static parseOFX(
+    ofxContent: string,
+    options?: { isCreditCard?: boolean; importCardCredits?: boolean }
+  ): OFXParsedTransaction[] {
+    const isCreditCard = options?.isCreditCard ?? false;
+    const importCardCredits = options?.importCardCredits ?? false;
+
     const results: OFXParsedTransaction[] = [];
     const stmtTrnRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
 
@@ -40,7 +46,27 @@ export class OFXImportService {
       const rawValor = parseFloat(amtMatch[1].replace(',', '.'));
       if (isNaN(rawValor)) continue;
 
-      const tipo = rawValor < 0 ? TransactionType.DESPESA : TransactionType.RECEITA;
+      let tipo = rawValor < 0 ? TransactionType.DESPESA : TransactionType.RECEITA;
+      let isCreditIgnored = false;
+      let selected = true;
+
+      if (isCreditCard) {
+        // Credit card rule:
+        // rawValor < 0 in OFX or credits/refunds/payments -> RECEITA / ignored if importCardCredits=false
+        // Purchases -> rawValor < 0 in standard OFX card exports, or rawValor > 0 depending on bank.
+        // If rawValor > 0 -> RECEITA in standard bank checking, but in credit card OFX:
+        // Purchases are debits.
+        if (rawValor > 0 || tipo === TransactionType.RECEITA) {
+          if (!importCardCredits) {
+            isCreditIgnored = true;
+            selected = false;
+          }
+          tipo = TransactionType.RECEITA;
+        } else {
+          tipo = TransactionType.DESPESA;
+        }
+      }
+
       const absValor = Math.abs(rawValor);
 
       // Extract DTPOSTED (Date: YYYYMMDD...)
@@ -67,7 +93,8 @@ export class OFXImportService {
         memo: memoMatch ? memoMatch[1].trim() : undefined,
         hash,
         isDuplicate: false,
-        selected: true,
+        selected,
+        isCreditIgnored,
       });
     }
 
@@ -95,7 +122,7 @@ export class OFXImportService {
       return {
         ...item,
         isDuplicate: isDup,
-        selected: !isDup,
+        selected: isDup ? false : item.selected,
       };
     });
   }
@@ -105,7 +132,7 @@ export class OFXImportService {
    */
   static async importTransactions(
     items: OFXParsedTransaction[],
-    contaId: string,
+    target: string | { id: string; type: 'CONTA' | 'CARTAO' },
     filename: string
   ): Promise<OFXImportRecord> {
     const validItems = items.filter((i) => i.selected);
@@ -113,6 +140,10 @@ export class OFXImportService {
     if (validItems.length === 0) {
       throw new Error('Nenhuma transação selecionada para importação.');
     }
+
+    const targetObj = typeof target === 'string'
+      ? { id: target, type: 'CONTA' as const }
+      : target;
 
     let totalCreditos = 0;
     let totalDebitos = 0;
@@ -128,7 +159,8 @@ export class OFXImportService {
         tipo: t.tipo,
         valor: t.valor,
         data: t.data,
-        contaId,
+        contaId: targetObj.type === 'CONTA' ? targetObj.id : undefined,
+        cartaoId: targetObj.type === 'CARTAO' ? targetObj.id : undefined,
         descricao: t.descricao,
         observacao: `Importado via extrato OFX (FitID: ${t.fitId || 'N/A'})`,
         status: TransactionStatus.CONCLUIDO,
@@ -141,7 +173,8 @@ export class OFXImportService {
     // Log import history
     const historyRecord = await DataService.insert('importacoes_ofx', {
       nome_arquivo: filename,
-      conta_id: contaId,
+      conta_id: targetObj.type === 'CONTA' ? targetObj.id : null,
+      cartao_id: targetObj.type === 'CARTAO' ? targetObj.id : null,
       total_transacoes: validItems.length,
       valor_total_creditos: Number(totalCreditos.toFixed(2)),
       valor_total_debitos: Number(totalDebitos.toFixed(2)),
@@ -151,22 +184,24 @@ export class OFXImportService {
       id: historyRecord.id,
       nomeArquivo: historyRecord.nome_arquivo,
       contaId: historyRecord.conta_id,
-      totalTransacoes: historyRecord.total_transacoes,
-      valorTotalCreditos: Number(historyRecord.valor_total_creditos),
-      valorTotalDebitos: Number(historyRecord.valor_total_debitos),
+      cartaoId: historyRecord.cartao_id,
+      totalTransacoes: validItems.length,
+      valorTotalCreditos: Number(totalCreditos.toFixed(2)),
+      valorTotalDebitos: Number(totalDebitos.toFixed(2)),
       createdAt: historyRecord.created_at,
     };
   }
 
   /**
-   * Retrieves full OFX import history with account names.
+   * Retrieves full OFX import history with account and credit card details.
    */
   static async getImportHistory(): Promise<OFXImportRecord[]> {
     const { data, error } = await supabase
       .from('importacoes_ofx')
       .select(`
         *,
-        account:contas!conta_id(*)
+        account:contas!conta_id(*),
+        creditCard:cartoes!cartao_id(*)
       `)
       .order('created_at', { ascending: false });
 
@@ -176,6 +211,7 @@ export class OFXImportService {
       id: row.id,
       nomeArquivo: row.nome_arquivo,
       contaId: row.conta_id,
+      cartaoId: row.cartao_id,
       totalTransacoes: row.total_transacoes,
       valorTotalCreditos: Number(row.valor_total_creditos),
       valorTotalDebitos: Number(row.valor_total_debitos),
@@ -190,6 +226,17 @@ export class OFXImportService {
         icone: row.account.icone,
         ativa: row.account.ativa,
         createdAt: row.account.created_at,
+      } : undefined,
+      creditCard: row.creditCard ? {
+        id: row.creditCard.id,
+        nome: row.creditCard.nome,
+        limite: Number(row.creditCard.limite),
+        diaFechamento: row.creditCard.dia_fechamento,
+        diaVencimento: row.creditCard.dia_vencimento,
+        cor: row.creditCard.cor,
+        icone: row.creditCard.icone,
+        ativo: row.creditCard.ativo,
+        createdAt: row.creditCard.created_at,
       } : undefined,
     }));
   }

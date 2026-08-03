@@ -161,12 +161,14 @@ export interface OFXParsedTransaction {
   hash: string;
   isDuplicate: boolean;
   selected: boolean;
+  isCreditIgnored?: boolean;
 }
 
 export interface OFXImportRecord {
   id: string;
   nomeArquivo: string;
   contaId?: string | null;
+  cartaoId?: string | null;
   totalTransacoes?: number;
   qtdTransacoes?: number;
   valorTotalCreditos?: number;
@@ -174,6 +176,7 @@ export interface OFXImportRecord {
   dataImportacao?: string;
   createdAt: string;
   account?: Account;
+  creditCard?: CreditCard;
 }
 
 export interface CSVColumnMapping {
@@ -200,6 +203,7 @@ export interface CSVParsedRow {
   hash: string;
   isDuplicate: boolean;
   selected: boolean;
+  isCreditIgnored?: boolean;
 }
 
 export interface CSVParsedTransaction extends CSVParsedRow {}
@@ -222,6 +226,7 @@ export interface CSVImportRecord {
   id: string;
   nomeArquivo: string;
   contaId?: string | null;
+  cartaoId?: string | null;
   totalTransacoes?: number;
   qtdTransacoes?: number;
   valorTotalCreditos?: number;
@@ -229,6 +234,7 @@ export interface CSVImportRecord {
   dataImportacao?: string;
   createdAt: string;
   account?: Account;
+  creditCard?: CreditCard;
 }
 
 export interface CategorySummaryItem {

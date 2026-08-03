@@ -12,15 +12,17 @@ import {
   CheckCircle2,
   AlertCircle,
   History,
+  CreditCard,
 } from 'lucide-react';
 
 export const OFXImportView: React.FC = () => {
-  const { accounts, refreshData } = useFinancialData();
+  const { accounts, creditCards, refreshData } = useFinancialData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedTransactions, setParsedTransactions] = useState<OFXParsedTransaction[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<string>('');
+  const [selectedTarget, setSelectedTarget] = useState<string>('');
+  const [importCardCredits, setImportCardCredits] = useState<boolean>(false);
   const [isParsing, setIsParsing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importHistory, setImportHistory] = useState<OFXImportRecord[]>([]);
@@ -28,11 +30,29 @@ export const OFXImportView: React.FC = () => {
   const [step, setStep] = useState<'SELECT' | 'PREVIEW' | 'SUCCESS'>('SELECT');
   const [importResultSummary, setImportResultSummary] = useState<{ count: number } | null>(null);
 
-  useEffect(() => {
-    if (accounts.length > 0 && !selectedAccount) {
-      setSelectedAccount(accounts[0].id);
+  const parseTargetInfo = (val: string) => {
+    if (val.startsWith('CARTAO:')) {
+      return { type: 'CARTAO' as const, id: val.replace('CARTAO:', '') };
     }
-  }, [accounts, selectedAccount]);
+    if (val.startsWith('CONTA:')) {
+      return { type: 'CONTA' as const, id: val.replace('CONTA:', '') };
+    }
+    const isCard = creditCards.some((c) => c.id === val);
+    if (isCard) return { type: 'CARTAO' as const, id: val };
+    return { type: 'CONTA' as const, id: val };
+  };
+
+  const currentTargetInfo = parseTargetInfo(selectedTarget);
+
+  useEffect(() => {
+    if (!selectedTarget) {
+      if (accounts.length > 0) {
+        setSelectedTarget(`CONTA:${accounts[0].id}`);
+      } else if (creditCards.length > 0) {
+        setSelectedTarget(`CARTAO:${creditCards[0].id}`);
+      }
+    }
+  }, [accounts, creditCards, selectedTarget]);
 
   const loadHistory = async () => {
     try {
@@ -56,7 +76,11 @@ export const OFXImportView: React.FC = () => {
 
     try {
       const text = await file.text();
-      const parsed = OFXImportService.parseOFX(text);
+      const targetInfo = parseTargetInfo(selectedTarget);
+      const parsed = OFXImportService.parseOFX(text, {
+        isCreditCard: targetInfo.type === 'CARTAO',
+        importCardCredits,
+      });
 
       if (parsed.length === 0) {
         alert('Nenhuma transação válida encontrada no arquivo OFX.');
@@ -90,8 +114,8 @@ export const OFXImportView: React.FC = () => {
   };
 
   const handleConfirmImport = async () => {
-    if (!selectedAccount) {
-      alert('Selecione a conta bancária de destino.');
+    if (!selectedTarget) {
+      alert('Selecione o destino da importação.');
       return;
     }
 
@@ -103,9 +127,10 @@ export const OFXImportView: React.FC = () => {
 
     setIsImporting(true);
     try {
+      const targetInfo = parseTargetInfo(selectedTarget);
       const res = await OFXImportService.importTransactions(
         parsedTransactions,
-        selectedAccount,
+        targetInfo,
         selectedFile?.name || 'extrato.ofx'
       );
 
@@ -134,6 +159,11 @@ export const OFXImportView: React.FC = () => {
   const selectedCount = parsedTransactions.filter((i) => i.selected).length;
   const duplicateCount = parsedTransactions.filter((i) => i.isDuplicate).length;
 
+  const destinationOptions = [
+    ...accounts.map((a) => ({ value: `CONTA:${a.id}`, label: `🏦 Conta: ${a.nome}` })),
+    ...creditCards.map((c) => ({ value: `CARTAO:${c.id}`, label: `💳 Cartão de Crédito: ${c.nome}` })),
+  ];
+
   const columns: Column<OFXParsedTransaction>[] = [
     {
       header: 'Importar',
@@ -159,11 +189,15 @@ export const OFXImportView: React.FC = () => {
         <div>
           <span className="font-semibold text-slate-100 block">{item.descricao}</span>
           {item.memo && <span className="text-[10px] text-slate-400 font-mono block">{item.memo}</span>}
-          {item.isDuplicate && (
+          {item.isCreditIgnored ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded mt-0.5">
+              Estorno/Crédito Ignorado (Cartão)
+            </span>
+          ) : item.isDuplicate ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded mt-0.5">
               <AlertCircle className="w-3 h-3" /> Transação Duplicada (Ignorada)
             </span>
-          )}
+          ) : null}
         </div>
       ),
     },
@@ -205,13 +239,55 @@ export const OFXImportView: React.FC = () => {
           <UploadCloud className="w-6 h-6 text-indigo-400" /> Importação de Extratos OFX
         </h2>
         <p className="text-xs text-slate-400">
-          Importe arquivos OFX do seu internet banking com pré-visualização e filtro automático de duplicações
+          Importe arquivos OFX do seu internet banking com pré-visualização para contas ou cartões de crédito
         </p>
       </div>
 
       {step === 'SELECT' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 space-y-4">
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+              <h4 className="font-semibold text-slate-100 text-sm">Destino da Importação</h4>
+              <Select
+                label="Conta ou Cartão de Destino"
+                value={selectedTarget}
+                onChange={(e) => setSelectedTarget(e.target.value)}
+                options={destinationOptions}
+              />
+
+              {currentTargetInfo.type === 'CARTAO' && (
+                <div className="p-4 bg-slate-950/70 border border-indigo-500/30 rounded-xl space-y-3 animate-fade-in">
+                  <span className="text-xs font-semibold text-slate-200 block flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4 text-indigo-400" />
+                    Importar créditos e estornos na fatura?
+                  </span>
+                  <div className="space-y-2 text-xs">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                      <input
+                        type="radio"
+                        name="importCardCreditsOFX"
+                        checked={importCardCredits === false}
+                        onChange={() => setImportCardCredits(false)}
+                        className="text-indigo-500 focus:ring-indigo-500 bg-slate-900 border-slate-700"
+                      />
+                      <span><strong>Não (Recomendado)</strong> — Importa apenas compras como despesas</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                      <input
+                        type="radio"
+                        name="importCardCreditsOFX"
+                        checked={importCardCredits === true}
+                        onChange={() => setImportCardCredits(true)}
+                        className="text-indigo-500 focus:ring-indigo-500 bg-slate-900 border-slate-700"
+                      />
+                      <span><strong>Sim</strong> — Importar estornos e pagamentos</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div
               onClick={() => fileInputRef.current?.click()}
               className="p-8 text-center border-dashed border-2 border-indigo-500/30 hover:border-indigo-500/60 bg-slate-900/40 hover:bg-slate-900/60 transition-all rounded-2xl cursor-pointer"
@@ -269,12 +345,12 @@ export const OFXImportView: React.FC = () => {
           {/* Controls Bar */}
           <div className="p-4 bg-slate-900/80 border border-slate-800 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4 w-full md:w-auto">
-              <div className="w-48">
+              <div className="w-64">
                 <Select
-                  label="Conta de Destino"
-                  value={selectedAccount}
-                  onChange={(e) => setSelectedAccount(e.target.value)}
-                  options={accounts.map((acc) => ({ value: acc.id, label: acc.nome }))}
+                  label="Destino da Importação"
+                  value={selectedTarget}
+                  onChange={(e) => setSelectedTarget(e.target.value)}
+                  options={destinationOptions}
                 />
               </div>
 
@@ -358,7 +434,7 @@ export const OFXImportView: React.FC = () => {
                   <div>
                     <span className="font-semibold text-slate-200 text-sm block">{record.nomeArquivo}</span>
                     <span className="text-[10px] text-slate-400 font-mono">
-                      {record.account?.nome ? `Conta: ${record.account.nome} | ` : ''}
+                      {record.creditCard ? `Cartão: ${record.creditCard.nome} | ` : record.account?.nome ? `Conta: ${record.account.nome} | ` : ''}
                       Data: {record.createdAt ? new Date(record.createdAt).toLocaleString('pt-BR') : ''}
                     </span>
                   </div>

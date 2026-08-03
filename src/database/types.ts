@@ -328,7 +328,8 @@ export interface Database {
         Row: {
           id: string
           nome_arquivo: string
-          conta_id: string
+          conta_id: string | null
+          cartao_id: string | null
           total_transacoes: number
           valor_total_creditos: number
           valor_total_debitos: number
@@ -337,7 +338,8 @@ export interface Database {
         Insert: {
           id?: string
           nome_arquivo: string
-          conta_id: string
+          conta_id?: string | null
+          cartao_id?: string | null
           total_transacoes: number
           valor_total_creditos?: number
           valor_total_debitos?: number
@@ -346,7 +348,8 @@ export interface Database {
         Update: {
           id?: string
           nome_arquivo?: string
-          conta_id?: string
+          conta_id?: string | null
+          cartao_id?: string | null
           total_transacoes?: number
           valor_total_creditos?: number
           valor_total_debitos?: number
@@ -395,7 +398,8 @@ export interface Database {
         Row: {
           id: string
           nome_arquivo: string
-          conta_id: string
+          conta_id: string | null
+          cartao_id: string | null
           total_transacoes: number
           valor_total_creditos: number
           valor_total_debitos: number
@@ -404,7 +408,8 @@ export interface Database {
         Insert: {
           id?: string
           nome_arquivo: string
-          conta_id: string
+          conta_id?: string | null
+          cartao_id?: string | null
           total_transacoes: number
           valor_total_creditos?: number
           valor_total_debitos?: number
@@ -413,7 +418,8 @@ export interface Database {
         Update: {
           id?: string
           nome_arquivo?: string
-          conta_id?: string
+          conta_id?: string | null
+          cartao_id?: string | null
           total_transacoes?: number
           valor_total_creditos?: number
           valor_total_debitos?: number
