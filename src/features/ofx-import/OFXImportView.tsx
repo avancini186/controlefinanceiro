@@ -88,8 +88,8 @@ export const OFXImportView: React.FC = () => {
         return;
       }
 
-      // Check duplicates against existing database transactions
-      const checked = await OFXImportService.checkDuplicates(parsed);
+      // Check duplicates against existing database transactions for target account/card
+      const checked = await OFXImportService.checkDuplicates(parsed, targetInfo.id);
       setParsedTransactions(checked);
       setStep('PREVIEW');
     } catch (err: any) {

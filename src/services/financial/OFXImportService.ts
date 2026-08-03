@@ -104,11 +104,17 @@ export class OFXImportService {
   /**
    * Checks parsed transactions against existing database transactions for deduplication.
    */
-  static async checkDuplicates(parsed: OFXParsedTransaction[]): Promise<OFXParsedTransaction[]> {
+  static async checkDuplicates(
+    parsed: OFXParsedTransaction[],
+    targetId?: string
+  ): Promise<OFXParsedTransaction[]> {
     const existingTransactions = await TransactionService.getAll();
     const existingHashes = new Set<string>();
 
     for (const tx of existingTransactions) {
+      if (targetId && tx.contaId !== targetId && tx.cartaoId !== targetId) {
+        continue;
+      }
       if (tx.importHash) {
         existingHashes.add(tx.importHash);
       } else {

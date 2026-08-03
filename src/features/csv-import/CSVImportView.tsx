@@ -169,7 +169,7 @@ export const CSVImportView: React.FC = () => {
         return;
       }
 
-      const checked = await CSVImportService.checkDuplicates(rows);
+      const checked = await CSVImportService.checkDuplicates(rows, targetInfo.id);
       setParsedRows(checked);
       setStep('preview');
     } catch (err: any) {

@@ -137,11 +137,17 @@ export class CSVImportService {
   /**
    * Checks candidate transactions against existing hashes in database for deduplication.
    */
-  static async checkDuplicates(rows: CSVParsedRow[]): Promise<CSVParsedRow[]> {
+  static async checkDuplicates(
+    rows: CSVParsedRow[],
+    targetId?: string
+  ): Promise<CSVParsedRow[]> {
     const existingTransactions = await TransactionService.getAll();
     const existingHashes = new Set<string>();
 
     for (const tx of existingTransactions) {
+      if (targetId && tx.contaId !== targetId && tx.cartaoId !== targetId) {
+        continue;
+      }
       if (tx.importHash) {
         existingHashes.add(tx.importHash);
       } else {
