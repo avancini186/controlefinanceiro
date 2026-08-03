@@ -273,48 +273,70 @@ export class CSVImportService {
    * Retrieves full CSV import history with account and credit card details.
    */
   static async getImportHistory(): Promise<CSVImportRecord[]> {
-    const { data, error } = await supabase
-      .from('importacoes_csv')
-      .select(`
-        *,
-        account:contas!conta_id(*),
-        creditCard:cartoes!cartao_id(*)
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('importacoes_csv')
+        .select(`
+          *,
+          account:contas!conta_id(*),
+          creditCard:cartoes!cartao_id(*)
+        `)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
+      if (error) {
+        console.warn('Could not fetch joined CSV history, falling back:', error.message);
+        const { data: simpleData } = await supabase
+          .from('importacoes_csv')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-    return ((data || []) as any[]).map((row: any) => ({
-      id: row.id,
-      nomeArquivo: row.nome_arquivo,
-      contaId: row.conta_id,
-      cartaoId: row.cartao_id,
-      totalTransacoes: row.total_transacoes,
-      valorTotalCreditos: Number(row.valor_total_creditos),
-      valorTotalDebitos: Number(row.valor_total_debitos),
-      createdAt: row.created_at,
-      account: row.account ? {
-        id: row.account.id,
-        nome: row.account.nome,
-        tipo: row.account.tipo,
-        saldoInicial: Number(row.account.saldo_inicial),
-        saldoAtual: Number(row.account.saldo_atual),
-        cor: row.account.cor,
-        icone: row.account.icone,
-        ativa: row.account.ativa,
-        createdAt: row.account.created_at,
-      } : undefined,
-      creditCard: row.creditCard ? {
-        id: row.creditCard.id,
-        nome: row.creditCard.nome,
-        limite: Number(row.creditCard.limite),
-        diaFechamento: row.creditCard.dia_fechamento,
-        diaVencimento: row.creditCard.dia_vencimento,
-        cor: row.creditCard.cor,
-        icone: row.creditCard.icone,
-        ativo: row.creditCard.ativo,
-        createdAt: row.creditCard.created_at,
-      } : undefined,
-    }));
+        return ((simpleData || []) as any[]).map((row: any) => ({
+          id: row.id,
+          nomeArquivo: row.nome_arquivo,
+          contaId: row.conta_id,
+          cartaoId: row.cartao_id,
+          totalTransacoes: row.total_transacoes,
+          valorTotalCreditos: Number(row.valor_total_creditos || 0),
+          valorTotalDebitos: Number(row.valor_total_debitos || 0),
+          createdAt: row.created_at,
+        }));
+      }
+
+      return ((data || []) as any[]).map((row: any) => ({
+        id: row.id,
+        nomeArquivo: row.nome_arquivo,
+        contaId: row.conta_id,
+        cartaoId: row.cartao_id,
+        totalTransacoes: row.total_transacoes,
+        valorTotalCreditos: Number(row.valor_total_creditos || 0),
+        valorTotalDebitos: Number(row.valor_total_debitos || 0),
+        createdAt: row.created_at,
+        account: row.account ? {
+          id: row.account.id,
+          nome: row.account.nome,
+          tipo: row.account.tipo,
+          saldoInicial: Number(row.account.saldo_inicial),
+          saldoAtual: Number(row.account.saldo_atual),
+          cor: row.account.cor,
+          icone: row.account.icone,
+          ativa: row.account.ativa,
+          createdAt: row.account.created_at,
+        } : undefined,
+        creditCard: row.creditCard ? {
+          id: row.creditCard.id,
+          nome: row.creditCard.nome,
+          limite: Number(row.creditCard.limite),
+          diaFechamento: row.creditCard.dia_fechamento,
+          diaVencimento: row.creditCard.dia_vencimento,
+          cor: row.creditCard.cor,
+          icone: row.creditCard.icone,
+          ativo: row.creditCard.ativo,
+          createdAt: row.creditCard.created_at,
+        } : undefined,
+      }));
+    } catch (err) {
+      console.error('Error fetching CSV import history:', err);
+      return [];
+    }
   }
 }
