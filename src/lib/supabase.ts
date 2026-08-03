@@ -1,15 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../database/types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
 
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl && 
-  supabaseAnonKey && 
-  supabaseUrl !== 'https://your-supabase-project.supabase.co' &&
-  !supabaseUrl.includes('your-supabase-project')
-);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
-export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+export class DatabaseError extends Error {
+  originalError?: unknown;
+  constructor(message: string, originalError?: unknown) {
+    super(message);
+    this.name = 'DatabaseError';
+    this.originalError = originalError;
+  }
+}

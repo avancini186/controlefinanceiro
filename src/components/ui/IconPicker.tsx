@@ -1,65 +1,71 @@
-import React from 'react';
+import React, { useState } from 'react';
 import * as Icons from 'lucide-react';
-import { clsx } from 'clsx';
 
-export const AVAILABLE_ICONS = [
-  'DollarSign',
-  'ShoppingBag',
-  'Home',
-  'Car',
-  'Smile',
-  'PieChart',
-  'Wallet',
-  'CreditCard',
-  'Tag',
-  'Coffee',
-  'PiggyBank',
-  'Briefcase',
-  'HeartPulse',
-  'Gift',
-  'ShieldAlert',
-  'TrendingUp',
-  'TrendingDown',
-  'Zap',
-  'BookOpen',
-  'Plane',
+const AVAILABLE_ICONS = [
+  'Tag', 'Wallet', 'CreditCard', 'TrendingUp', 'TrendingDown', 'ShoppingBag',
+  'Coffee', 'Utensils', 'Car', 'Home', 'Smartphone', 'Zap', 'Gift', 'Film',
+  'DollarSign', 'HeartPulse', 'GraduationCap', 'Plane', 'Briefcase', 'Shield'
 ];
 
-export const DynamicIcon: React.FC<{ name: string; className?: string }> = ({ name, className = 'w-4 h-4' }) => {
-  const IconComponent = (Icons as Record<string, any>)[name] || Icons.Tag;
-  return <IconComponent className={className} />;
-};
-
-interface IconPickerProps {
-  value: string;
-  onChange: (iconName: string) => void;
+export interface IconPickerProps {
+  selectedIcon: string;
+  onSelectIcon: (iconName: string) => void;
   label?: string;
 }
 
-export const IconPicker: React.FC<IconPickerProps> = ({ value, onChange, label = 'Ícone' }) => {
+export const IconPicker: React.FC<IconPickerProps> = ({
+  selectedIcon,
+  onSelectIcon,
+  label = 'Ícone',
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Render current selected icon safely
+  const renderLucideIcon = (name: string, size = 18) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const IconComponent = (Icons as any)[name] || Icons.Tag;
+    return <IconComponent size={size} />;
+  };
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">{label}</label>
-      <div className="grid grid-cols-10 gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200 max-h-32 overflow-y-auto">
-        {AVAILABLE_ICONS.map((iconName) => {
-          const isSelected = value === iconName;
-          return (
-            <button
-              key={iconName}
-              type="button"
-              onClick={() => onChange(iconName)}
-              className={clsx(
-                'p-2 rounded-lg flex items-center justify-center transition-all',
-                isSelected
-                  ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20'
-                  : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
-              )}
-              title={iconName}
-            >
-              <DynamicIcon name={iconName} className="w-4 h-4" />
-            </button>
-          );
-        })}
+    <div className="space-y-1.5">
+      {label && <label className="block text-xs font-medium text-slate-300">{label}</label>}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full flex items-center justify-between bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 hover:border-slate-700 transition-colors"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="p-1 bg-slate-800 border border-slate-700 rounded-lg text-indigo-400">
+              {renderLucideIcon(selectedIcon)}
+            </span>
+            <span className="text-xs font-mono text-slate-300">{selectedIcon}</span>
+          </div>
+          <span className="text-xs text-slate-500">Alterar</span>
+        </button>
+
+        {isOpen && (
+          <div className="absolute top-full left-0 mt-2 z-30 w-full p-3 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl grid grid-cols-5 gap-2 max-h-48 overflow-y-auto">
+            {AVAILABLE_ICONS.map((iconName) => (
+              <button
+                key={iconName}
+                type="button"
+                onClick={() => {
+                  onSelectIcon(iconName);
+                  setIsOpen(false);
+                }}
+                className={`p-2.5 flex flex-col items-center justify-center rounded-xl transition-all ${
+                  selectedIcon === iconName
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                    : 'bg-slate-950/40 text-slate-400 hover:bg-slate-800 hover:text-slate-100 border border-slate-800/80'
+                }`}
+              >
+                {renderLucideIcon(iconName, 20)}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

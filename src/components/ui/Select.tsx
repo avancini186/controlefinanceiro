@@ -1,54 +1,64 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-interface Option {
-  value: string | number;
+export interface SelectOption {
+  value: string;
   label: string;
 }
 
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
-  options: Option[];
+  options: SelectOption[];
   error?: string;
-  placeholder?: string;
+  leftIcon?: React.ReactNode;
 }
 
-export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, options, error, placeholder, className, id, ...props }, ref) => {
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(
+  ({ label, options, error, leftIcon, className, id, ...props }, ref) => {
     const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
     return (
-      <div className="w-full flex flex-col gap-1.5">
+      <div className="w-full space-y-1.5">
         {label && (
-          <label htmlFor={selectId} className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+          <label htmlFor={selectId} className="block text-xs font-medium text-slate-300">
             {label}
           </label>
         )}
-        <select
-          ref={ref}
-          id={selectId}
-          className={twMerge(
-            clsx(
-              'w-full px-3 py-2 bg-white border rounded-lg text-sm text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 disabled:bg-slate-50 disabled:text-slate-500 cursor-pointer',
-              error ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : 'border-slate-200',
-              className
-            )
+        <div className="relative flex items-center">
+          {leftIcon && (
+            <div className="absolute left-3 pointer-events-none text-slate-400">
+              {leftIcon}
+            </div>
           )}
-          {...props}
-        >
-          {placeholder && (
-            <option value="" disabled>
-              {placeholder}
-            </option>
-          )}
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        {error && <span className="text-xs font-medium text-rose-600">{error}</span>}
+          <select
+            id={selectId}
+            ref={ref}
+            className={twMerge(
+              clsx(
+                'w-full bg-slate-950/60 border rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer',
+                error
+                  ? 'border-rose-500/80 focus:border-rose-500'
+                  : 'border-slate-800 focus:border-indigo-500/80',
+                leftIcon && 'pl-10',
+                className
+              )
+            )}
+            {...props}
+          >
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-100">
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <div className="absolute right-3 pointer-events-none text-slate-400">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+        {error && <p className="text-xs text-rose-400 font-medium">{error}</p>}
       </div>
     );
   }

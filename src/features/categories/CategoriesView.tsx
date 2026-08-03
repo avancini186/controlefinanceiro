@@ -1,181 +1,138 @@
 import React, { useState } from 'react';
-import { useFinancial } from '../../context/FinancialContext';
-import { CategoryService } from '../../services/financial';
-import { TransactionType, type Category } from '../../types';
+import { useFinancialData } from '../../hooks/useFinancialData';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { Table } from '../../components/ui/Table';
 import { Badge } from '../../components/ui/Badge';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { CategoryModal } from './CategoryModal';
-import { DynamicIcon } from '../../components/ui/IconPicker';
-import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
+import { CategoryService } from '../../services/financial/CategoryService';
+import type { Category } from '../../types';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
+import * as Icons from 'lucide-react';
 
 export const CategoriesView: React.FC = () => {
-  const { categories, refreshData } = useFinancial();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | TransactionType>('all');
-  
+  const { categories, refreshData } = useFinancialData();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  
-  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
+  const [categoryToEdit, setCategoryToEdit] = useState<Category | null>(null);
 
-  const filteredCategories = categories.filter((cat) => {
-    const matchesSearch = cat.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter === 'all' || cat.type === typeFilter;
-    return matchesSearch && matchesType;
-  });
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleSave = async (categoryData: Omit<Category, 'id'> & { id?: string }) => {
-    await CategoryService.saveCategory(categoryData);
-    await refreshData();
+  const renderIcon = (name: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const IconComponent = (Icons as any)[name] || Icons.Tag;
+    return <IconComponent className="w-5 h-5" />;
   };
 
-  const handleDeleteConfirm = async () => {
-    if (deletingCategory) {
-      await CategoryService.deleteCategory(deletingCategory.id);
-      setDeletingCategory(null);
+  const handleDelete = async () => {
+    if (!categoryToDelete) return;
+    setIsDeleting(true);
+    try {
+      await CategoryService.delete(categoryToDelete.id);
       await refreshData();
+      setCategoryToDelete(null);
+    } catch (err) {
+      console.error('Error deleting category:', err);
+      alert('Erro ao excluir categoria.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const columns = [
-    {
-      header: 'Categoria',
-      cell: (cat: Category) => (
-        <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs"
-            style={{ backgroundColor: cat.color }}
-          >
-            <DynamicIcon name={cat.icon} className="w-5 h-5" />
-          </div>
-          <span className="font-semibold text-slate-800">{cat.name}</span>
-        </div>
-      ),
-    },
-    {
-      header: 'Tipo',
-      cell: (cat: Category) => (
-        <Badge variant={cat.type === TransactionType.INCOME ? 'emerald' : 'rose'}>
-          {cat.type === TransactionType.INCOME ? 'Receita' : 'Despesa'}
-        </Badge>
-      ),
-    },
-    {
-      header: 'Cor',
-      cell: (cat: Category) => (
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-full border border-slate-200" style={{ backgroundColor: cat.color }} />
-          <span className="text-xs font-mono text-slate-500">{cat.color}</span>
-        </div>
-      ),
-    },
-    {
-      header: 'Ações',
-      className: 'text-right',
-      cell: (cat: Category) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setEditingCategory(cat);
-              setIsModalOpen(true);
-            }}
-            title="Editar"
-          >
-            <Edit2 className="w-4 h-4 text-slate-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDeletingCategory(cat)}
-            title="Excluir"
-          >
-            <Trash2 className="w-4 h-4 text-rose-600" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header Bar Actions */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3 flex-1">
-          <div className="w-full max-w-xs">
-            <Input
-              placeholder="Pesquisar categoria..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              icon={<Search className="w-4 h-4" />}
-            />
-          </div>
-          <div className="flex items-center bg-slate-200/60 p-1 rounded-lg text-xs font-medium">
-            <button
-              onClick={() => setTypeFilter('all')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
-                typeFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600'
-              }`}
-            >
-              Todas
-            </button>
-            <button
-              onClick={() => setTypeFilter(TransactionType.INCOME)}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
-                typeFilter === TransactionType.INCOME ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'text-slate-600'
-              }`}
-            >
-              Receitas
-            </button>
-            <button
-              onClick={() => setTypeFilter(TransactionType.EXPENSE)}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
-                typeFilter === TransactionType.EXPENSE ? 'bg-white text-rose-700 shadow-xs font-semibold' : 'text-slate-600'
-              }`}
-            >
-              Despesas
-            </button>
-          </div>
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-100">Categorias de Transações</h3>
+          <p className="text-xs text-slate-400">Classificação de receitas e despesas</p>
         </div>
-
         <Button
+          variant="primary"
+          icon={<Plus className="w-4 h-4" />}
           onClick={() => {
-            setEditingCategory(null);
+            setCategoryToEdit(null);
             setIsModalOpen(true);
           }}
-          icon={<Plus className="w-4 h-4" />}
         >
           Nova Categoria
         </Button>
       </div>
 
-      {/* Table */}
-      <Table
-        columns={columns}
-        data={filteredCategories}
-        keyExtractor={(cat) => cat.id}
-        emptyMessage="Nenhuma categoria encontrada."
-      />
+      {categories.length === 0 ? (
+        <div className="p-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
+          <p className="text-slate-400 text-sm">Nenhuma categoria cadastrada ainda.</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => {
+              setCategoryToEdit(null);
+              setIsModalOpen(true);
+            }}
+          >
+            Cadastrar Primeira Categoria
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {categories.map((cat) => (
+            <div
+              key={cat.id}
+              className="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl backdrop-blur-md flex items-center justify-between hover:border-slate-700 transition-all shadow-sm group"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-100 shadow-md shrink-0"
+                  style={{ backgroundColor: `${cat.cor}25`, borderColor: cat.cor, color: cat.cor }}
+                >
+                  {renderIcon(cat.icone)}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">{cat.nome}</p>
+                  <Badge variant={cat.tipo === 'RECEITA' ? 'success' : 'danger'} size="sm" className="mt-0.5">
+                    {cat.tipo}
+                  </Badge>
+                </div>
+              </div>
 
-      {/* Create / Edit Modal */}
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => {
+                    setCategoryToEdit(cat);
+                    setIsModalOpen(true);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCategoryToDelete(cat)}
+                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal CRUD Categoria */}
       <CategoryModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSave={handleSave}
-        categoryToEdit={editingCategory}
+        categoryToEdit={categoryToEdit}
+        onSuccess={refreshData}
       />
 
-      {/* Delete Confirmation Modal */}
+      {/* Confirm Exclusão */}
       <ConfirmModal
-        isOpen={Boolean(deletingCategory)}
-        onClose={() => setDeletingCategory(null)}
-        onConfirm={handleDeleteConfirm}
+        isOpen={!!categoryToDelete}
+        onClose={() => setCategoryToDelete(null)}
+        onConfirm={handleDelete}
         title="Excluir Categoria"
-        message={`Tem certeza que deseja excluir a categoria "${deletingCategory?.name}"? Transações vinculadas a ela perderão o vínculo.`}
+        message={`Deseja realmente excluir a categoria "${categoryToDelete?.nome}"?`}
+        isLoading={isDeleting}
       />
     </div>
   );

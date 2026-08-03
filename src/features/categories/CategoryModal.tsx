@@ -1,74 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
-import { IconPicker, DynamicIcon } from '../../components/ui/IconPicker';
-import { TransactionType, type Category } from '../../types';
-import { validateRequired } from '../../utils/validation';
+import { IconPicker } from '../../components/ui/IconPicker';
+import { CategoryService } from '../../services/financial/CategoryService';
+import { categorySchema, type CategoryFormData } from '../../types/schemas';
+import { CategoryType } from '../../types/enums';
+import type { Category } from '../../types';
 
-interface CategoryModalProps {
+export interface CategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (category: Omit<Category, 'id'> & { id?: string }) => Promise<void>;
   categoryToEdit?: Category | null;
+  onSuccess: () => void;
 }
-
-const PRESET_COLORS = [
-  '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', 
-  '#ec4899', '#f59e0b', '#ef4444', '#64748b', '#18181b'
-];
 
 export const CategoryModal: React.FC<CategoryModalProps> = ({
   isOpen,
   onClose,
-  onSave,
   categoryToEdit,
+  onSuccess,
 }) => {
-  const [name, setName] = useState('');
-  const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
-  const [color, setColor] = useState('#3b82f6');
-  const [icon, setIcon] = useState('Tag');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<CategoryFormData>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: {
+      nome: '',
+      icone: 'Tag',
+      cor: '#64748b',
+      tipo: CategoryType.DESPESA,
+    },
+  });
+
+  const selectedIcon = watch('icone');
 
   useEffect(() => {
     if (categoryToEdit) {
-      setName(categoryToEdit.name);
-      setType(categoryToEdit.type);
-      setColor(categoryToEdit.color);
-      setIcon(categoryToEdit.icon);
-    } else {
-      setName('');
-      setType(TransactionType.EXPENSE);
-      setColor('#3b82f6');
-      setIcon('Tag');
-    }
-    setErrors({});
-  }, [categoryToEdit, isOpen]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const validation = validateRequired({ name });
-    if (!validation.isValid) {
-      setErrors(validation.errors);
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await onSave({
-        id: categoryToEdit?.id,
-        name: name.trim(),
-        type,
-        color,
-        icon,
+      reset({
+        nome: categoryToEdit.nome,
+        icone: categoryToEdit.icone,
+        cor: categoryToEdit.cor,
+        tipo: categoryToEdit.tipo,
       });
+    } else {
+      reset({
+        nome: '',
+        icone: 'Tag',
+        cor: '#64748b',
+        tipo: CategoryType.DESPESA,
+      });
+    }
+  }, [categoryToEdit, reset, isOpen]);
+
+  const onSubmit = async (data: CategoryFormData) => {
+    try {
+      if (categoryToEdit) {
+        await CategoryService.update(categoryToEdit.id, data);
+      } else {
+        await CategoryService.create(data);
+      }
+      onSuccess();
       onClose();
     } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error saving category:', err);
+      alert('Erro ao salvar categoria no banco de dados.');
     }
   };
 
@@ -77,72 +81,52 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={categoryToEdit ? 'Editar Categoria' : 'Nova Categoria'}
+      subtitle="Classifique suas movimentações em receitas ou despesas"
       maxWidth="md"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+            Cancelar
+          </Button>
+          <Button variant="primary" onClick={handleSubmit(onSubmit)} isLoading={isSubmitting}>
+            Salvar Categoria
+          </Button>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Input
           label="Nome da Categoria"
-          placeholder="Ex: Alimentação, Salário..."
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          error={errors.name}
+          placeholder="Ex: Alimentação, Transporte"
+          {...register('nome')}
+          error={errors.nome?.message}
         />
 
         <Select
-          label="Tipo"
-          value={type}
-          onChange={(e) => setType(e.target.value as TransactionType)}
+          label="Tipo da Categoria"
+          {...register('tipo')}
+          error={errors.tipo?.message}
           options={[
-            { value: TransactionType.EXPENSE, label: 'Despesa' },
-            { value: TransactionType.INCOME, label: 'Receita' },
+            { value: CategoryType.DESPESA, label: 'Despesa' },
+            { value: CategoryType.RECEITA, label: 'Receita' },
           ]}
         />
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Cor da Categoria</label>
-          <div className="flex items-center gap-2">
-            {PRESET_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                className={`w-7 h-7 rounded-full transition-transform ${
-                  color === c ? 'scale-125 ring-2 ring-offset-2 ring-slate-800' : 'hover:scale-110'
-                }`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
+        <IconPicker
+          selectedIcon={selectedIcon || 'Tag'}
+          onSelectIcon={(iconName) => setValue('icone', iconName)}
+        />
+
+        <div className="space-y-1.5">
+          <label className="block text-xs font-medium text-slate-300">Cor Identificadora</label>
+          <div className="flex items-center gap-3">
             <input
               type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200 bg-transparent p-0 ml-2"
-              title="Cor customizada"
+              {...register('cor')}
+              className="w-10 h-10 rounded-xl bg-transparent border border-slate-800 cursor-pointer"
             />
+            <span className="text-xs font-mono text-slate-400">{watch('cor')}</span>
           </div>
-        </div>
-
-        <IconPicker value={icon} onChange={setIcon} label="Ícone da Categoria" />
-
-        {/* Preview Card */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-3">
-          <span className="text-xs text-slate-500 font-medium">Pré-visualização:</span>
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold"
-            style={{ backgroundColor: color }}
-          >
-            <DynamicIcon name={icon} className="w-4 h-4" />
-          </div>
-          <span className="text-sm font-semibold text-slate-800">{name || 'Nome da Categoria'}</span>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-slate-100">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Salvando...' : categoryToEdit ? 'Atualizar' : 'Criar Categoria'}
-          </Button>
         </div>
       </form>
     </Modal>

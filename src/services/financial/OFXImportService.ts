@@ -1,0 +1,196 @@
+import { DataService } from '../DataService';
+import { TransactionService } from './TransactionService';
+import type { OFXParsedTransaction, OFXImportRecord } from '../../types';
+import { TransactionType, TransactionStatus } from '../../types/enums';
+import { supabase } from '../../lib/supabase';
+
+export class OFXImportService {
+  /**
+   * Generates a unique deterministic SHA-like hash based on: data + valor + descricao.
+   */
+  static generateHash(data: string, valor: number, descricao: string): string {
+    const raw = `${data.trim()}|${Number(valor).toFixed(2)}|${descricao.trim().toLowerCase()}`;
+    let hash = 0;
+    for (let i = 0; i < raw.length; i++) {
+      const char = raw.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash |= 0; // Convert to 32bit integer
+    }
+    return 'OFX_' + Math.abs(hash).toString(36);
+  }
+
+  /**
+   * Parses raw OFX file content and extracts transactions.
+   */
+  static parseOFX(ofxContent: string): OFXParsedTransaction[] {
+    const results: OFXParsedTransaction[] = [];
+    const stmtTrnRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
+
+    let match: RegExpExecArray | null;
+    while ((match = stmtTrnRegex.exec(ofxContent)) !== null) {
+      const trnContent = match[1];
+
+      // Extract FITID
+      const fitIdMatch = trnContent.match(/<FITID>\s*([^\r\n<]+)/i);
+      const fitId = fitIdMatch ? fitIdMatch[1].trim() : 'N/A';
+
+      // Extract TRNAMT (Amount)
+      const amtMatch = trnContent.match(/<TRNAMT>\s*([^\r\n<]+)/i);
+      if (!amtMatch) continue;
+      const rawValor = parseFloat(amtMatch[1].replace(',', '.'));
+      if (isNaN(rawValor)) continue;
+
+      const tipo = rawValor < 0 ? TransactionType.DESPESA : TransactionType.RECEITA;
+      const absValor = Math.abs(rawValor);
+
+      // Extract DTPOSTED (Date: YYYYMMDD...)
+      const dateMatch = trnContent.match(/<DTPOSTED>\s*([0-9]{8})/i);
+      let formattedDate = new Date().toISOString().split('T')[0];
+      if (dateMatch) {
+        const rawDate = dateMatch[1];
+        formattedDate = `${rawDate.substring(0, 4)}-${rawDate.substring(4, 6)}-${rawDate.substring(6, 8)}`;
+      }
+
+      // Extract NAME or MEMO (Description)
+      const nameMatch = trnContent.match(/<NAME>\s*([^\r\n<]+)/i);
+      const memoMatch = trnContent.match(/<MEMO>\s*([^\r\n<]+)/i);
+      const rawDesc = (nameMatch ? nameMatch[1] : memoMatch ? memoMatch[1] : 'Transação Importada OFX').trim();
+
+      const hash = this.generateHash(formattedDate, absValor, rawDesc);
+
+      results.push({
+        fitId,
+        tipo,
+        valor: Number(absValor.toFixed(2)),
+        data: formattedDate,
+        descricao: rawDesc,
+        memo: memoMatch ? memoMatch[1].trim() : undefined,
+        hash,
+        isDuplicate: false,
+        selected: true,
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Checks parsed transactions against existing database transactions for deduplication.
+   */
+  static async checkDuplicates(parsed: OFXParsedTransaction[]): Promise<OFXParsedTransaction[]> {
+    const existingTransactions = await TransactionService.getAll();
+    const existingHashes = new Set<string>();
+
+    for (const tx of existingTransactions) {
+      if (tx.importHash) {
+        existingHashes.add(tx.importHash);
+      } else {
+        const computedHash = this.generateHash(tx.data, tx.valor, tx.descricao);
+        existingHashes.add(computedHash);
+      }
+    }
+
+    return parsed.map((item) => {
+      const isDup = existingHashes.has(item.hash);
+      return {
+        ...item,
+        isDuplicate: isDup,
+        selected: !isDup,
+      };
+    });
+  }
+
+  /**
+   * Confirms import and persists valid selected transactions to the database.
+   */
+  static async importTransactions(
+    items: OFXParsedTransaction[],
+    contaId: string,
+    filename: string
+  ): Promise<OFXImportRecord> {
+    const validItems = items.filter((i) => i.selected);
+
+    if (validItems.length === 0) {
+      throw new Error('Nenhuma transação selecionada para importação.');
+    }
+
+    let totalCreditos = 0;
+    let totalDebitos = 0;
+
+    for (const t of validItems) {
+      if (t.tipo === TransactionType.RECEITA) {
+        totalCreditos += t.valor;
+      } else {
+        totalDebitos += t.valor;
+      }
+
+      await TransactionService.create({
+        tipo: t.tipo,
+        valor: t.valor,
+        data: t.data,
+        contaId,
+        descricao: t.descricao,
+        observacao: `Importado via extrato OFX (FitID: ${t.fitId || 'N/A'})`,
+        status: TransactionStatus.CONCLUIDO,
+        importHash: t.hash,
+        conciliada: true,
+        dataConciliacao: new Date().toISOString(),
+      });
+    }
+
+    // Log import history
+    const historyRecord = await DataService.insert('importacoes_ofx', {
+      nome_arquivo: filename,
+      conta_id: contaId,
+      total_transacoes: validItems.length,
+      valor_total_creditos: Number(totalCreditos.toFixed(2)),
+      valor_total_debitos: Number(totalDebitos.toFixed(2)),
+    });
+
+    return {
+      id: historyRecord.id,
+      nomeArquivo: historyRecord.nome_arquivo,
+      contaId: historyRecord.conta_id,
+      totalTransacoes: historyRecord.total_transacoes,
+      valorTotalCreditos: Number(historyRecord.valor_total_creditos),
+      valorTotalDebitos: Number(historyRecord.valor_total_debitos),
+      createdAt: historyRecord.created_at,
+    };
+  }
+
+  /**
+   * Retrieves full OFX import history with account names.
+   */
+  static async getImportHistory(): Promise<OFXImportRecord[]> {
+    const { data, error } = await supabase
+      .from('importacoes_ofx')
+      .select(`
+        *,
+        account:contas!conta_id(*)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return ((data || []) as any[]).map((row: any) => ({
+      id: row.id,
+      nomeArquivo: row.nome_arquivo,
+      contaId: row.conta_id,
+      totalTransacoes: row.total_transacoes,
+      valorTotalCreditos: Number(row.valor_total_creditos),
+      valorTotalDebitos: Number(row.valor_total_debitos),
+      createdAt: row.created_at,
+      account: row.account ? {
+        id: row.account.id,
+        nome: row.account.nome,
+        tipo: row.account.tipo,
+        saldoInicial: Number(row.account.saldo_inicial),
+        saldoAtual: Number(row.account.saldo_atual),
+        cor: row.account.cor,
+        icone: row.account.icone,
+        ativa: row.account.ativa,
+        createdAt: row.account.created_at,
+      } : undefined,
+    }));
+  }
+}

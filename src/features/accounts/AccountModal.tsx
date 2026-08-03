@@ -1,78 +1,84 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
-import type { Account } from '../../types/database';
-import { validateRequired } from '../../utils/validation';
+import { IconPicker } from '../../components/ui/IconPicker';
+import { AccountService } from '../../services/financial/AccountService';
+import { accountSchema, type AccountFormData } from '../../types/schemas';
+import { AccountType } from '../../types/enums';
+import type { Account } from '../../types';
 
-interface AccountModalProps {
+export interface AccountModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (item: Omit<Account, 'id'> & { id?: string }) => Promise<void>;
-  itemToEdit?: Account | null;
+  accountToEdit?: Account | null;
+  onSuccess: () => void;
 }
-
-const PRESET_COLORS = [
-  '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', 
-  '#ec4899', '#f59e0b', '#ef4444', '#64748b'
-];
 
 export const AccountModal: React.FC<AccountModalProps> = ({
   isOpen,
   onClose,
-  onSave,
-  itemToEdit,
+  accountToEdit,
+  onSuccess,
 }) => {
-  const [name, setName] = useState('');
-  const [bank, setBank] = useState('');
-  const [initialBalance, setInitialBalance] = useState<string>('0.00');
-  const [color, setColor] = useState('#10b981');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<AccountFormData>({
+    resolver: zodResolver(accountSchema),
+    defaultValues: {
+      nome: '',
+      tipo: AccountType.CONTA_CORRENTE,
+      saldoInicial: 0,
+      cor: '#3b82f6',
+      icone: 'Wallet',
+      ativa: true,
+    },
+  });
+
+  const selectedIcon = watch('icone');
 
   useEffect(() => {
-    if (itemToEdit) {
-      setName(itemToEdit.name);
-      setBank(itemToEdit.bank);
-      setInitialBalance(String(itemToEdit.initial_balance));
-      setColor(itemToEdit.color);
-    } else {
-      setName('');
-      setBank('');
-      setInitialBalance('0.00');
-      setColor('#10b981');
-    }
-    setErrors({});
-  }, [itemToEdit, isOpen]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const validation = validateRequired({ name, bank, initialBalance });
-    if (!validation.isValid) {
-      setErrors(validation.errors);
-      return;
-    }
-
-    const numBalance = parseFloat(initialBalance.replace(',', '.'));
-    if (isNaN(numBalance)) {
-      setErrors({ initialBalance: 'Informe um saldo numérico válido' });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await onSave({
-        id: itemToEdit?.id,
-        name: name.trim(),
-        bank: bank.trim(),
-        initial_balance: numBalance,
-        color,
+    if (accountToEdit) {
+      reset({
+        nome: accountToEdit.nome,
+        tipo: accountToEdit.tipo,
+        saldoInicial: accountToEdit.saldoInicial,
+        cor: accountToEdit.cor,
+        icone: accountToEdit.icone,
+        ativa: accountToEdit.ativa,
       });
+    } else {
+      reset({
+        nome: '',
+        tipo: AccountType.CONTA_CORRENTE,
+        saldoInicial: 0,
+        cor: '#3b82f6',
+        icone: 'Wallet',
+        ativa: true,
+      });
+    }
+  }, [accountToEdit, reset, isOpen]);
+
+  const onSubmit = async (data: AccountFormData) => {
+    try {
+      if (accountToEdit) {
+        await AccountService.update(accountToEdit.id, data);
+      } else {
+        await AccountService.create(data);
+      }
+      onSuccess();
       onClose();
     } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error saving account:', err);
+      alert('Erro ao salvar conta no banco de dados.');
     }
   };
 
@@ -80,66 +86,64 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={itemToEdit ? 'Editar Conta Corrente' : 'Nova Conta Corrente'}
+      title={accountToEdit ? 'Editar Conta' : 'Nova Conta'}
+      subtitle="Cadastre contas correntes, investimentos ou reserva de emergência"
       maxWidth="md"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+            Cancelar
+          </Button>
+          <Button variant="primary" onClick={handleSubmit(onSubmit)} isLoading={isSubmitting}>
+            Salvar Conta
+          </Button>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Input
           label="Nome da Conta"
-          placeholder="Ex: Conta Corrente Principal, Reserva..."
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          error={errors.name}
+          placeholder="Ex: Nubank, Itaú, XP Investimentos"
+          {...register('nome')}
+          error={errors.nome?.message}
         />
 
-        <Input
-          label="Banco / Instituição"
-          placeholder="Ex: Banco do Brasil, Nubank, Itaú..."
-          value={bank}
-          onChange={(e) => setBank(e.target.value)}
-          error={errors.bank}
+        <Select
+          label="Tipo da Conta"
+          {...register('tipo')}
+          error={errors.tipo?.message}
+          options={[
+            { value: AccountType.CONTA_CORRENTE, label: 'Conta Corrente' },
+            { value: AccountType.POUPANCA, label: 'Poupança' },
+            { value: AccountType.INVESTIMENTO, label: 'Investimento' },
+            { value: AccountType.CARTEIRA, label: 'Carteira (Dinheiro)' },
+            { value: AccountType.OUTROS, label: 'Outros' },
+          ]}
         />
 
         <Input
           label="Saldo Inicial (R$)"
           type="number"
           step="0.01"
-          placeholder="0.00"
-          value={initialBalance}
-          onChange={(e) => setInitialBalance(e.target.value)}
-          error={errors.initialBalance}
+          {...register('saldoInicial', { valueAsNumber: true })}
+          error={errors.saldoInicial?.message}
         />
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Cor de Identificação</label>
-          <div className="flex items-center gap-2">
-            {PRESET_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                className={`w-7 h-7 rounded-full transition-transform ${
-                  color === c ? 'scale-125 ring-2 ring-offset-2 ring-slate-800' : 'hover:scale-110'
-                }`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
+        <IconPicker
+          selectedIcon={selectedIcon || 'Wallet'}
+          onSelectIcon={(iconName) => setValue('icone', iconName)}
+        />
+
+        <div className="space-y-1.5">
+          <label className="block text-xs font-medium text-slate-300">Cor Identificadora</label>
+          <div className="flex items-center gap-3">
             <input
               type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200 bg-transparent p-0 ml-2"
+              {...register('cor')}
+              className="w-10 h-10 rounded-xl bg-transparent border border-slate-800 cursor-pointer"
             />
+            <span className="text-xs font-mono text-slate-400">{watch('cor')}</span>
           </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-slate-100">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Salvando...' : itemToEdit ? 'Atualizar' : 'Criar Conta'}
-          </Button>
         </div>
       </form>
     </Modal>

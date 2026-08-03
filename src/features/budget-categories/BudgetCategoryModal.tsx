@@ -1,69 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
-import { IconPicker, DynamicIcon } from '../../components/ui/IconPicker';
-import type { BudgetCategory } from '../../types/database';
-import { validateRequired } from '../../utils/validation';
+import { BudgetService } from '../../services/financial/BudgetService';
+import { budgetCategorySchema, type BudgetCategoryFormData } from '../../types/schemas';
+import type { Category } from '../../types';
 
-interface BudgetCategoryModalProps {
+export interface BudgetCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (item: Omit<BudgetCategory, 'id'> & { id?: string }) => Promise<void>;
-  itemToEdit?: BudgetCategory | null;
+  categories: Category[];
+  currentAnoMes: string; // YYYY-MM
+  onSuccess: () => void;
 }
-
-const PRESET_COLORS = [
-  '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', 
-  '#ec4899', '#ef4444', '#06b6d4', '#64748b'
-];
 
 export const BudgetCategoryModal: React.FC<BudgetCategoryModalProps> = ({
   isOpen,
   onClose,
-  onSave,
-  itemToEdit,
+  categories,
+  currentAnoMes,
+  onSuccess,
 }) => {
-  const [name, setName] = useState('');
-  const [color, setColor] = useState('#8b5cf6');
-  const [icon, setIcon] = useState('PieChart');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const expenseCategories = categories.filter((c) => c.tipo === 'DESPESA');
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<BudgetCategoryFormData>({
+    resolver: zodResolver(budgetCategorySchema),
+    defaultValues: {
+      categoriaId: expenseCategories[0]?.id || '',
+      limiteMensal: 500,
+      anoMes: currentAnoMes,
+    },
+  });
 
   useEffect(() => {
-    if (itemToEdit) {
-      setName(itemToEdit.name);
-      setColor(itemToEdit.color);
-      setIcon(itemToEdit.icon);
-    } else {
-      setName('');
-      setColor('#8b5cf6');
-      setIcon('PieChart');
-    }
-    setErrors({});
-  }, [itemToEdit, isOpen]);
+    reset({
+      categoriaId: expenseCategories[0]?.id || '',
+      limiteMensal: 500,
+      anoMes: currentAnoMes,
+    });
+  }, [categories, currentAnoMes, reset, isOpen]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const validation = validateRequired({ name });
-    if (!validation.isValid) {
-      setErrors(validation.errors);
-      return;
-    }
-
-    setIsSubmitting(true);
+  const onSubmit = async (data: BudgetCategoryFormData) => {
     try {
-      await onSave({
-        id: itemToEdit?.id,
-        name: name.trim(),
-        color,
-        icon,
-      });
+      await BudgetService.setBudget(data.categoriaId, data.limiteMensal, data.anoMes);
+      onSuccess();
       onClose();
     } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error saving budget category:', err);
+      alert('Erro ao salvar orçamento de categoria no banco de dados.');
     }
   };
 
@@ -71,62 +63,43 @@ export const BudgetCategoryModal: React.FC<BudgetCategoryModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={itemToEdit ? 'Editar Categoria de Orçamento' : 'Nova Categoria de Orçamento'}
+      title="Definir Orçamento por Categoria"
+      subtitle="Defina o limite máximo planejado para o mês de referência"
       maxWidth="md"
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Input
-          label="Nome do Orçamento"
-          placeholder="Ex: Reserva de Emergência, Gastos Fixos..."
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          error={errors.name}
-        />
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Cor de Identificação</label>
-          <div className="flex items-center gap-2">
-            {PRESET_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                className={`w-7 h-7 rounded-full transition-transform ${
-                  color === c ? 'scale-125 ring-2 ring-offset-2 ring-slate-800' : 'hover:scale-110'
-                }`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200 bg-transparent p-0 ml-2"
-            />
-          </div>
-        </div>
-
-        <IconPicker value={icon} onChange={setIcon} label="Ícone de Exibição" />
-
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-3">
-          <span className="text-xs text-slate-500 font-medium">Pré-visualização:</span>
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold"
-            style={{ backgroundColor: color }}
-          >
-            <DynamicIcon name={icon} className="w-4 h-4" />
-          </div>
-          <span className="text-sm font-semibold text-slate-800">{name || 'Nome do Orçamento'}</span>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-slate-100">
-          <Button type="button" variant="secondary" onClick={onClose}>
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Salvando...' : itemToEdit ? 'Atualizar' : 'Criar Orçamento'}
+          <Button variant="primary" onClick={handleSubmit(onSubmit)} isLoading={isSubmitting}>
+            Salvar Orçamento
           </Button>
-        </div>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Select
+          label="Categoria de Despesa"
+          {...register('categoriaId')}
+          error={errors.categoriaId?.message}
+          options={expenseCategories.map((c) => ({ value: c.id, label: c.nome }))}
+        />
+
+        <Input
+          label="Teto Máximo Mensal (R$)"
+          type="number"
+          step="0.01"
+          {...register('limiteMensal', { valueAsNumber: true })}
+          error={errors.limiteMensal?.message}
+        />
+
+        <Input
+          label="Mês de Referência (YYYY-MM)"
+          type="text"
+          placeholder="2026-08"
+          {...register('anoMes')}
+          error={errors.anoMes?.message}
+        />
       </form>
     </Modal>
   );

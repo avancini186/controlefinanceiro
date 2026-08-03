@@ -1,112 +1,99 @@
-import { DataService } from '../dataService';
-import { TransactionType, type InstallmentGroup, type Transaction, type CreateInstallmentParams, type TransactionSplit } from '../../types';
+import { DataService } from '../DataService';
+import { TransactionService } from './TransactionService';
+import type { Transaction, InstallmentGroup } from '../../types';
+import { TransactionStatus } from '../../types/enums';
 
-export type { CreateInstallmentParams };
-
-/**
- * InstallmentService - Domain business logic for multi-installment purchases
- */
 export class InstallmentService {
   /**
-   * Business Logic for Multi-Installment Purchase:
-   * 1. Generates InstallmentGroup entity
-   * 2. Calculates exact installment distribution & rounding remainder
-   * 3. Prepares N monthly transactions starting from first_date
-   * 4. If splits are provided, attaches proportional splits to each installment transaction
+   * Generates an installment group and creates N installment transactions spanning future months automatically.
    */
-  static async createInstallmentPurchase(params: CreateInstallmentParams): Promise<void> {
-    const { 
-      description, 
-      total_amount, 
-      installments_count, 
-      first_date, 
-      category_id, 
-      card_id, 
-      observation,
-      splits 
-    } = params;
+  static async createInstallmentPurchase(
+    purchase: Omit<Transaction, 'id' | 'createdAt'>,
+    totalParcelas: number
+  ): Promise<{ group: InstallmentGroup; transactions: Transaction[] }> {
+    if (totalParcelas < 2) {
+      throw new Error('Compra parcelada deve ter no mínimo 2 parcelas');
+    }
 
-    const hasSplits = Boolean(splits && splits.length > 0);
-    const groupId = crypto.randomUUID();
-    const installmentGroup: InstallmentGroup = {
-      id: groupId,
-      description: description.trim(),
-      total_amount: Number(total_amount),
-      installments_count: Number(installments_count),
-      created_at: new Date().toISOString()
+    const valorParcela = Number((purchase.valor / totalParcelas).toFixed(2));
+    // Adjustment for decimal rounding on last installment
+    const diferencaArredondamento = Number((purchase.valor - valorParcela * totalParcelas).toFixed(2));
+
+    // 1. Create Installment Group
+    const groupRow = await DataService.insert('grupos_parcelamento', {
+      descricao: purchase.descricao,
+      total_parcelas: totalParcelas,
+      valor_total: purchase.valor,
+    });
+
+    const group: InstallmentGroup = {
+      id: groupRow.id,
+      descricao: groupRow.descricao,
+      totalParcelas: groupRow.total_parcelas,
+      valorTotal: Number(groupRow.valor_total),
+      createdAt: groupRow.created_at,
     };
 
-    // Calculate installment values & remainder rounding
-    const baseAmount = Math.floor((total_amount / installments_count) * 100) / 100;
-    const remainder = Math.round((total_amount - (baseAmount * installments_count)) * 100) / 100;
+    // 2. Generate monthly transaction instances
+    const createdTransactions: Transaction[] = [];
+    const baseDate = new Date(purchase.data);
 
-    const transactionsToInsert: Transaction[] = [];
-    const splitsToInsert: { transactionId: string; splits: Omit<TransactionSplit, 'id' | 'transaction_id'>[] }[] = [];
-    const startDate = new Date(first_date + 'T00:00:00');
+    for (let i = 1; i <= totalParcelas; i++) {
+      const currentDate = new Date(baseDate);
+      currentDate.setMonth(baseDate.getMonth() + (i - 1));
 
-    for (let i = 0; i < installments_count; i++) {
-      const installmentDate = new Date(startDate);
-      installmentDate.setMonth(startDate.getMonth() + i);
+      // Add rounding difference to the first installment
+      const val = i === 1 ? Number((valorParcela + diferencaArredondamento).toFixed(2)) : valorParcela;
+      const formattedDate = currentDate.toISOString().split('T')[0];
 
-      // Add remainder rounding to the first installment
-      const installmentAmount = i === 0 
-        ? Number((baseAmount + remainder).toFixed(2)) 
-        : Number(baseAmount.toFixed(2));
-
-      const txId = crypto.randomUUID();
-      transactionsToInsert.push({
-        id: txId,
-        type: TransactionType.EXPENSE,
-        amount: installmentAmount,
-        date: installmentDate.toISOString().split('T')[0],
-        category_id: hasSplits ? splits![0].category_id : category_id,
-        card_id,
-        description: `${description.trim()} (${i + 1}/${installments_count})`,
-        observation: observation?.trim() || undefined,
-        installment_group_id: groupId,
-        installment_number: `${i + 1}/${installments_count}`,
-        is_split: hasSplits,
+      const tx = await TransactionService.create({
+        ...purchase,
+        valor: val,
+        data: formattedDate,
+        descricao: `${purchase.descricao} (${i}/${totalParcelas})`,
+        grupoParcelamentoId: group.id,
+        numeroParcela: i,
+        totalParcelas: totalParcelas,
       });
 
-      if (hasSplits && splits) {
-        // Calculate proportional splits for this installment
-        const ratio = installmentAmount / total_amount;
-        let runningSplitSum = 0;
-
-        const proportionalSplits = splits.map((s, sIndex) => {
-          if (sIndex === splits.length - 1) {
-            // Last split gets exact remaining difference to ensure exact sum matching installmentAmount
-            const lastAmount = Number((installmentAmount - runningSplitSum).toFixed(2));
-            return {
-              category_id: s.category_id,
-              amount: lastAmount,
-              description: s.description?.trim() || undefined,
-            };
-          }
-
-          const propAmount = Number((s.amount * ratio).toFixed(2));
-          runningSplitSum += propAmount;
-          return {
-            category_id: s.category_id,
-            amount: propAmount,
-            description: s.description?.trim() || undefined,
-          };
-        });
-
-        splitsToInsert.push({ transactionId: txId, splits: proportionalSplits });
-      }
+      createdTransactions.push(tx);
     }
 
-    await DataService.insertInstallmentGroupAndTransactions(installmentGroup, transactionsToInsert);
-
-    if (splitsToInsert.length > 0) {
-      for (const item of splitsToInsert) {
-        await DataService.saveTransactionSplits(item.transactionId, item.splits);
-      }
-    }
+    return { group, transactions: createdTransactions };
   }
 
-  static async deleteInstallmentGroup(groupId: string): Promise<void> {
-    return DataService.deleteInstallmentGroup(groupId);
+  /**
+   * Cancels all pending installments in a group.
+   */
+  static async cancelInstallmentGroup(groupId: string): Promise<boolean> {
+    const transactions = await DataService.selectAll('transacoes', {
+      column: 'grupo_parcelamento_id',
+      value: groupId,
+    });
+
+    for (const tx of transactions) {
+      if (tx.status === TransactionStatus.PENDENTE) {
+        await DataService.update('transacoes', tx.id, {
+          status: TransactionStatus.CANCELADO,
+        });
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Deletes an entire installment group and all associated transactions.
+   */
+  static async deleteInstallmentGroup(groupId: string): Promise<boolean> {
+    const transactions = await DataService.selectAll('transacoes', {
+      column: 'grupo_parcelamento_id',
+      value: groupId,
+    });
+
+    for (const tx of transactions) {
+      await DataService.delete('transacoes', tx.id);
+    }
+
+    return await DataService.delete('grupos_parcelamento', groupId);
   }
 }
