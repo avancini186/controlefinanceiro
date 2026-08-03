@@ -89,7 +89,7 @@ export const IntegrityView: React.FC = () => {
       )}
 
       {/* Audit Summary KPI Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-1">
           <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1.5">
             <ShieldAlert className="w-3.5 h-3.5 text-indigo-400" /> Total de Apontamentos

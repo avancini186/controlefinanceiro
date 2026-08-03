@@ -201,13 +201,14 @@ export const RecurringTransactionsView: React.FC = () => {
             Cadastre contas fixas e receitas que se repetem automaticamente no sistema
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             icon={<RefreshCw className="w-4 h-4 text-indigo-400" />}
             onClick={handleProcessNow}
             isLoading={isProcessing}
+            className="w-full sm:w-auto"
           >
             Processar Pendentes Hoje
           </Button>
@@ -219,6 +220,7 @@ export const RecurringTransactionsView: React.FC = () => {
               setRecurrenceToEdit(null);
               setIsModalOpen(true);
             }}
+            className="w-full sm:w-auto"
           >
             Nova Recorrência
           </Button>

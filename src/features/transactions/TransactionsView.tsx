@@ -381,7 +381,7 @@ export const TransactionsView: React.FC = () => {
 
       {/* Month Summary Cards */}
       {filterByMonthActive && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Receitas do Mês</p>

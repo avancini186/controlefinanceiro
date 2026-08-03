@@ -36,7 +36,7 @@ export const CreditCardsView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-slate-100">Cartões de Crédito</h3>
           <p className="text-xs text-slate-400">Controle de limites, faturas atuais e faturas vindouras</p>
@@ -48,18 +48,19 @@ export const CreditCardsView: React.FC = () => {
             setCardToEdit(null);
             setIsModalOpen(true);
           }}
+          className="w-full sm:w-auto"
         >
           Novo Cartão
         </Button>
       </div>
 
       {creditCards.length === 0 ? (
-        <div className="p-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
+        <div className="p-8 sm:p-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
           <p className="text-slate-400 text-sm">Nenhum cartão de crédito cadastrado ainda.</p>
           <Button
             variant="outline"
             size="sm"
-            className="mt-4"
+            className="mt-4 w-full sm:w-auto"
             onClick={() => {
               setCardToEdit(null);
               setIsModalOpen(true);
@@ -69,7 +70,7 @@ export const CreditCardsView: React.FC = () => {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           {creditCards.map((card) => {
             const currentInvoice = card.faturaAtual || 0;
             const nextInvoice = card.faturaProxima || 0;
@@ -78,35 +79,37 @@ export const CreditCardsView: React.FC = () => {
             return (
               <div
                 key={card.id}
-                className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-5 hover:border-slate-700 transition-all shadow-lg group relative"
+                className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-6 backdrop-blur-md space-y-5 hover:border-slate-700 transition-all shadow-lg group relative"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl">
+                    <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
                       <CardIcon className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-100">{card.nome}</h4>
+                      <h4 className="font-semibold text-slate-100 truncate max-w-[140px] sm:max-w-[200px]">{card.nome}</h4>
                       <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Cartão Ativo
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: card.cor }} />
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: card.cor }} />
+                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => {
                           setCardToEdit(card);
                           setIsModalOpen(true);
                         }}
-                        className="p-1 text-slate-400 hover:text-indigo-400"
+                        className="p-1.5 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors"
+                        title="Editar cartão"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setCardToDelete(card)}
-                        className="p-1 text-slate-400 hover:text-rose-400"
+                        className="p-1.5 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                        title="Excluir cartão"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

@@ -152,15 +152,15 @@ export const ReconciliationView: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-slate-100">Conciliação Bancária</h3>
           <p className="text-xs text-slate-400">
-            Confera e concilie as movimentações do seu sistema com os extratos do seu banco
+            Validação de movimentações com o extrato real para garantir consistência financeira
           </p>
         </div>
 
-        <div className="w-64">
+        <div className="w-full sm:w-64">
           <Select
             label="Filtrar por Conta Bancária"
             value={selectedAccountId}
@@ -175,7 +175,7 @@ export const ReconciliationView: React.FC = () => {
 
       {/* Summary Resumo Panel */}
       {summary && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
           <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-1">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1.5">
               <Wallet className="w-3.5 h-3.5 text-indigo-400" /> Saldo do Sistema

@@ -44,7 +44,7 @@ export const ReportsView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-slate-100">Relatórios Financeiros Analíticos</h3>
           <p className="text-xs text-slate-400">Consolidação de movimentações e split transactions por categoria, conta e cartão</p>
@@ -55,7 +55,7 @@ export const ReportsView: React.FC = () => {
             type="month"
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200"
+            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 min-h-[44px]"
           />
         </div>
       </div>

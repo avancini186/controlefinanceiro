@@ -40,12 +40,12 @@ export const Header: React.FC<HeaderProps> = ({
   });
 
   return (
-    <header className="h-20 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md px-6 md:px-8 flex items-center justify-between gap-4 sticky top-0 z-30">
+    <header className="h-20 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 sticky top-0 z-30 shrink-0">
       <div className="flex items-center gap-3">
         {onOpenMobileMenu && (
           <button
             onClick={onOpenMobileMenu}
-            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors"
+            className="md:hidden p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors"
             aria-label="Abrir menu"
           >
             <Menu className="w-6 h-6" />

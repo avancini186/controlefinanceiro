@@ -156,7 +156,7 @@ export const BackupExportView: React.FC = () => {
               <span>Exportar Tabelas Individuais em CSV</span>
             </h5>
 
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <Button variant="outline" size="sm" onClick={() => handleExportCSV('transacoes')}>
                 Transações (.CSV)
               </Button>

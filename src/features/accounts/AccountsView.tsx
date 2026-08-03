@@ -37,7 +37,7 @@ export const AccountsView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-slate-100">Contas Financeiras</h3>
           <p className="text-xs text-slate-400">Gerencie suas contas correntes, investimentos e carteiras</p>
@@ -49,18 +49,19 @@ export const AccountsView: React.FC = () => {
             setAccountToEdit(null);
             setIsModalOpen(true);
           }}
+          className="w-full sm:w-auto"
         >
           Nova Conta
         </Button>
       </div>
 
       {accounts.length === 0 ? (
-        <div className="p-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
+        <div className="p-8 sm:p-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
           <p className="text-slate-400 text-sm">Nenhuma conta bancária cadastrada ainda.</p>
           <Button
             variant="outline"
             size="sm"
-            className="mt-4"
+            className="mt-4 w-full sm:w-auto"
             onClick={() => {
               setAccountToEdit(null);
               setIsModalOpen(true);
@@ -70,11 +71,11 @@ export const AccountsView: React.FC = () => {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {accounts.map((acc) => (
             <div
               key={acc.id}
-              className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md relative overflow-hidden flex flex-col justify-between h-52 hover:border-slate-700 transition-all shadow-lg group"
+              className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-6 backdrop-blur-md relative overflow-hidden flex flex-col justify-between h-52 hover:border-slate-700 transition-all shadow-lg group"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -82,39 +83,43 @@ export const AccountsView: React.FC = () => {
                     <Wallet className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-slate-100">{acc.nome}</h4>
+                    <h4 className="font-semibold text-slate-100 truncate max-w-[150px]">{acc.nome}</h4>
                     <Badge variant="neutral" size="sm" className="mt-1">
                       {acc.tipo.replace('_', ' ')}
                     </Badge>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: acc.cor }} />
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: acc.cor }} />
                 </div>
               </div>
 
               <div>
                 <span className="text-xs text-slate-400 block mb-1">Saldo Atual (Calculado)</span>
-                <span className="text-2xl font-bold font-mono text-slate-100">
+                <span className="text-xl sm:text-2xl font-bold font-mono text-slate-100 truncate block">
                   {formatCurrency(acc.saldoAtual)}
                 </span>
               </div>
 
-              <div className="pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                <span>Saldo Inicial: {formatCurrency(acc.saldoInicial)}</span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs">
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Inicial: {formatCurrency(acc.saldoInicial)}
+                </span>
+                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => {
                       setAccountToEdit(acc);
                       setIsModalOpen(true);
                     }}
-                    className="p-1 text-slate-400 hover:text-indigo-400"
+                    className="p-1.5 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Editar conta"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setAccountToDelete(acc)}
-                    className="p-1 text-slate-400 hover:text-rose-400"
+                    className="p-1.5 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Excluir conta"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

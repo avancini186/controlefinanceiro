@@ -41,7 +41,7 @@ export const BudgetCategoriesView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-slate-100">Orçamentos Mensais por Categoria</h3>
           <p className="text-xs text-slate-400">Defina teto de gastos por categoria para manter o controle financeiro ({currentAnoMes})</p>
@@ -50,20 +50,21 @@ export const BudgetCategoriesView: React.FC = () => {
           variant="primary"
           icon={<Plus className="w-4 h-4" />}
           onClick={() => setIsModalOpen(true)}
+          className="w-full sm:w-auto"
         >
           Novo Orçamento
         </Button>
       </div>
 
       {budgets.length === 0 ? (
-        <div className="p-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
+        <div className="p-8 sm:p-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
           <p className="text-slate-400 text-sm">Nenhum orçamento configurado para {currentAnoMes}.</p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => setIsModalOpen(true)}>
+          <Button variant="outline" size="sm" className="mt-4 w-full sm:w-auto" onClick={() => setIsModalOpen(true)}>
             Definir Teto de Gastos
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           {budgets.map((b) => {
             // Calculate spent amount in this category for the month (including splits)
             let spent = 0;

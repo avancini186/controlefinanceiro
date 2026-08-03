@@ -72,7 +72,7 @@ export function Table<T>({
 
   return (
     <div className="w-full overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40">
-      <table className="w-full text-left text-xs border-collapse">
+      <table className="w-full min-w-full min-w-max text-left text-xs border-collapse">
         <thead className="bg-slate-900/80 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[10px]">
           <tr>
             {onSelectRow && (
