@@ -185,9 +185,9 @@ export const CSVImportView: React.FC = () => {
   };
 
   const handleExecuteImport = async () => {
-    const validCount = parsedRows.filter((r) => r.selected && !r.isDuplicate).length;
+    const validCount = parsedRows.filter((r) => r.selected).length;
     if (validCount === 0) {
-      setErrorMsg('Selecione pelo menos uma transação nova para importar.');
+      setErrorMsg('Selecione pelo menos uma transação para importar.');
       return;
     }
 
@@ -218,7 +218,7 @@ export const CSVImportView: React.FC = () => {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  const selectedItems = parsedRows.filter((r) => r.selected && !r.isDuplicate);
+  const selectedItems = parsedRows.filter((r) => r.selected);
   const totalCreditos = selectedItems.filter((r) => r.tipo === 'RECEITA').reduce((a, b) => a + b.valor, 0);
   const totalDebitos = selectedItems.filter((r) => r.tipo === 'DESPESA').reduce((a, b) => a + b.valor, 0);
 
@@ -470,9 +470,8 @@ export const CSVImportView: React.FC = () => {
                     <td className="p-3 text-center">
                       <button
                         type="button"
-                        disabled={row.isDuplicate}
                         onClick={() => handleToggleSelect(idx)}
-                        className="text-slate-400 hover:text-indigo-400 disabled:opacity-30"
+                        className="text-slate-400 hover:text-indigo-400"
                       >
                         {row.selected ? (
                           <CheckSquare className="w-4 h-4 text-indigo-400" />

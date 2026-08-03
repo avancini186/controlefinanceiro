@@ -109,7 +109,7 @@ export const OFXImportView: React.FC = () => {
 
   const handleSelectAll = (select: boolean) => {
     setParsedTransactions((prev) =>
-      prev.map((item) => (item.isDuplicate ? item : { ...item, selected: select }))
+      prev.map((item) => ({ ...item, selected: select }))
     );
   };
 
@@ -171,9 +171,8 @@ export const OFXImportView: React.FC = () => {
         <input
           type="checkbox"
           checked={item.selected}
-          disabled={item.isDuplicate}
           onChange={() => handleToggleSelect(item.hash)}
-          className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500 disabled:opacity-40"
+          className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500 cursor-pointer"
         />
       ),
     },
