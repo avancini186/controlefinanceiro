@@ -3,7 +3,9 @@ import { TransactionService } from './TransactionService';
 import { CategoryService } from './CategoryService';
 import { AccountService } from './AccountService';
 import { CreditCardService } from './CreditCardService';
+import { CreditCardBillingService } from './CreditCardBillingService';
 import { ConfigService } from './ConfigService';
+import { parseInstallmentFromDescription } from '../../utils/installmentParser';
 import type { Transaction } from '../../types';
 
 export type IssueSeverity = 'ALTA' | 'MEDIA' | 'BAIXA';
@@ -406,5 +408,110 @@ export class IntegrityService {
     }
 
     return true;
+  }
+
+  /**
+   * Scans all database transactions, detects installment descriptions (e.g. Parcela 1/3),
+   * updates numero_parcela/total_parcelas, recalculates correct fatura_competencia,
+   * and automatically generates any missing future installments for subsequent months.
+   */
+  static async repairInstallmentTransactions(): Promise<{ repaired: number; createdFuture: number }> {
+    const [allTx, cards] = await Promise.all([
+      TransactionService.getAll(),
+      CreditCardService.getAll(),
+    ]);
+
+    const cardMap = new Map(cards.map((c) => [c.id, c]));
+    let repaired = 0;
+    let createdFuture = 0;
+
+    for (const tx of allTx) {
+      if (!tx.cartaoId) continue;
+      const card = cardMap.get(tx.cartaoId);
+      if (!card) continue;
+
+      const parsedInst = parseInstallmentFromDescription(tx.descricao);
+      const numParc = tx.numeroParcela || parsedInst.numeroParcela;
+      const totParc = tx.totalParcelas || parsedInst.totalParcelas;
+
+      // 1. Recalculate exact fatura_competencia directly based on transaction.data
+      const billing = CreditCardBillingService.calculateBillingPeriod(
+        tx.data,
+        card.diaFechamento,
+        card.diaVencimento
+      );
+
+      const needsUpdate =
+        tx.faturaCompetencia !== billing.faturaCompetencia ||
+        tx.numeroParcela !== numParc ||
+        tx.totalParcelas !== totParc;
+
+      if (needsUpdate) {
+        await DataService.update('transacoes', tx.id, {
+          fatura_competencia: billing.faturaCompetencia,
+          fatura_ano: billing.faturaAno,
+          fatura_mes: billing.faturaMes,
+          fatura_vencimento: billing.faturaVencimento,
+          numero_parcela: numParc || null,
+          total_parcelas: totParc || null,
+        });
+        repaired++;
+      }
+
+      // 2. Auto-generate missing future installments if numParc < totParc
+      if (numParc && totParc && numParc < totParc) {
+        const baseDesc = parsedInst.baseDescription;
+        const [baseY, baseM, baseD] = tx.data.split('-').map(Number);
+
+        // Check which future installment numbers already exist in the database for this card & base description
+        const existingInstallments = new Set(
+          allTx
+            .filter((t) => t.cartaoId === tx.cartaoId && t.descricao.includes(baseDesc))
+            .map((t) => t.numeroParcela || parseInstallmentFromDescription(t.descricao).numeroParcela)
+            .filter(Boolean)
+        );
+
+        for (let next = numParc + 1; next <= totParc; next++) {
+          if (existingInstallments.has(next)) continue;
+
+          const monthOffset = next - numParc;
+          let targetY = baseY;
+          let targetM = (baseM - 1) + monthOffset;
+          targetY += Math.floor(targetM / 12);
+          targetM = ((targetM % 12) + 12) % 12;
+
+          const maxDays = new Date(targetY, targetM + 1, 0).getDate();
+          const targetD = Math.min(baseD, maxDays);
+          const nextDate = `${targetY}-${String(targetM + 1).padStart(2, '0')}-${String(targetD).padStart(2, '0')}`;
+
+          const nextDesc = tx.descricao.replace(
+            /(?:parcela|parc\.?)\s*\d{1,2}\s*[/|de]\s*\d{1,2}/i,
+            `Parcela ${next}/${totParc}`
+          );
+
+          await TransactionService.create({
+            tipo: tx.tipo,
+            valor: tx.valor,
+            data: nextDate,
+            cartaoId: tx.cartaoId,
+            categoriaId: tx.categoriaId,
+            descricao: nextDesc !== tx.descricao ? nextDesc : `${baseDesc} - Parcela ${next}/${totParc}`,
+            observacao: `Gerado automaticamente via reparo de parcelamento`,
+            status: tx.status,
+            importHash: tx.importHash ? `${tx.importHash}_P${next}` : undefined,
+            conciliada: tx.conciliada,
+            dataConciliacao: tx.dataConciliacao,
+            grupoParcelamentoId: tx.grupoParcelamentoId,
+            numeroParcela: next,
+            totalParcelas: totParc,
+          });
+
+          existingInstallments.add(next);
+          createdFuture++;
+        }
+      }
+    }
+
+    return { repaired, createdFuture };
   }
 }

@@ -125,9 +125,11 @@ export class TransactionService {
     if (transaction.cartaoId && !faturaCompetencia) {
       const card = await CreditCardService.getById(transaction.cartaoId);
       if (card) {
-        const billing = transaction.numeroParcela && transaction.numeroParcela > 1
-          ? CreditCardBillingService.calculateInstallmentBillingPeriod(transaction.data, transaction.numeroParcela, card.diaFechamento, card.diaVencimento)
-          : CreditCardBillingService.calculateBillingPeriod(transaction.data, card.diaFechamento, card.diaVencimento);
+        const billing = CreditCardBillingService.calculateBillingPeriod(
+          transaction.data,
+          card.diaFechamento,
+          card.diaVencimento
+        );
 
         faturaCompetencia = billing.faturaCompetencia;
         faturaAno = billing.faturaAno;

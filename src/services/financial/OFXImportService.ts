@@ -2,7 +2,7 @@ import { DataService } from '../DataService';
 import { TransactionService } from './TransactionService';
 import type { OFXParsedTransaction, OFXImportRecord } from '../../types';
 import { TransactionType, TransactionStatus } from '../../types/enums';
-import { supabase } from '../../lib/supabase';
+import { parseInstallmentFromDescription } from '../../utils/installmentParser';
 
 export class OFXImportService {
   /**
@@ -51,11 +51,6 @@ export class OFXImportService {
       let selected = true;
 
       if (isCreditCard) {
-        // Credit card rule:
-        // rawValor < 0 in OFX or credits/refunds/payments -> RECEITA / ignored if importCardCredits=false
-        // Purchases -> rawValor < 0 in standard OFX card exports, or rawValor > 0 depending on bank.
-        // If rawValor > 0 -> RECEITA in standard bank checking, but in credit card OFX:
-        // Purchases are debits.
         if (rawValor > 0 || tipo === TransactionType.RECEITA) {
           if (!importCardCredits) {
             isCreditIgnored = true;
@@ -134,7 +129,8 @@ export class OFXImportService {
   }
 
   /**
-   * Confirms import and persists valid selected transactions to the database.
+   * Confirms import and persists valid selected transactions to the database,
+   * automatically generating future installments for installment purchases.
    */
   static async importTransactions(
     items: OFXParsedTransaction[],
@@ -161,6 +157,23 @@ export class OFXImportService {
         totalDebitos += t.valor;
       }
 
+      const parsedInst = parseInstallmentFromDescription(t.descricao);
+      const numParc = parsedInst.numeroParcela;
+      const totParc = parsedInst.totalParcelas;
+
+      let group: any = null;
+      if (numParc && totParc && totParc > 1) {
+        try {
+          group = await DataService.insert('grupos_parcelamento', {
+            descricao: parsedInst.baseDescription,
+            valor_total: t.valor * totParc,
+            total_parcelas: totParc,
+          });
+        } catch (e) {
+          console.warn('Failed to insert grupo_parcelamento:', e);
+        }
+      }
+
       await TransactionService.create({
         tipo: t.tipo,
         valor: t.valor,
@@ -173,7 +186,48 @@ export class OFXImportService {
         importHash: t.hash,
         conciliada: true,
         dataConciliacao: new Date().toISOString(),
+        grupoParcelamentoId: group ? group.id : undefined,
+        numeroParcela: numParc,
+        totalParcelas: totParc,
       });
+
+      // Auto-generate remaining future installments if numParc < totParc
+      if (numParc && totParc && numParc < totParc && targetObj.type === 'CARTAO') {
+        const [baseY, baseM, baseD] = t.data.split('-').map(Number);
+
+        for (let next = numParc + 1; next <= totParc; next++) {
+          const monthOffset = next - numParc;
+          let targetY = baseY;
+          let targetM = (baseM - 1) + monthOffset;
+          targetY += Math.floor(targetM / 12);
+          targetM = ((targetM % 12) + 12) % 12;
+
+          const maxDays = new Date(targetY, targetM + 1, 0).getDate();
+          const targetD = Math.min(baseD, maxDays);
+          const nextDate = `${targetY}-${String(targetM + 1).padStart(2, '0')}-${String(targetD).padStart(2, '0')}`;
+
+          const nextDesc = t.descricao.replace(
+            /(?:parcela|parc\.?)\s*\d{1,2}\s*[/|de]\s*\d{1,2}/i,
+            `Parcela ${next}/${totParc}`
+          );
+
+          await TransactionService.create({
+            tipo: t.tipo,
+            valor: t.valor,
+            data: nextDate,
+            cartaoId: targetObj.id,
+            descricao: nextDesc !== t.descricao ? nextDesc : `${parsedInst.baseDescription} - Parcela ${next}/${totParc}`,
+            observacao: `Gerado automaticamente via importação parcelada (Origem: FitID ${t.fitId || 'N/A'})`,
+            status: TransactionStatus.CONCLUIDO,
+            importHash: `${t.hash}_P${next}`,
+            conciliada: true,
+            dataConciliacao: new Date().toISOString(),
+            grupoParcelamentoId: group ? group.id : undefined,
+            numeroParcela: next,
+            totalParcelas: totParc,
+          });
+        }
+      }
     }
 
     // Log import history
@@ -203,35 +257,8 @@ export class OFXImportService {
    */
   static async getImportHistory(): Promise<OFXImportRecord[]> {
     try {
-      const { data, error } = await supabase
-        .from('importacoes_ofx')
-        .select(`
-          *,
-          account:contas!conta_id(*),
-          creditCard:cartoes!cartao_id(*)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.warn('Could not fetch joined OFX history, falling back:', error.message);
-        const { data: simpleData } = await supabase
-          .from('importacoes_ofx')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        return ((simpleData || []) as any[]).map((row: any) => ({
-          id: row.id,
-          nomeArquivo: row.nome_arquivo,
-          contaId: row.conta_id,
-          cartaoId: row.cartao_id,
-          totalTransacoes: row.total_transacoes,
-          valorTotalCreditos: Number(row.valor_total_creditos || 0),
-          valorTotalDebitos: Number(row.valor_total_debitos || 0),
-          createdAt: row.created_at,
-        }));
-      }
-
-      return ((data || []) as any[]).map((row: any) => ({
+      const records = await DataService.selectAll('importacoes_ofx');
+      return (records || []).map((row: any) => ({
         id: row.id,
         nomeArquivo: row.nome_arquivo,
         contaId: row.conta_id,
@@ -240,28 +267,6 @@ export class OFXImportService {
         valorTotalCreditos: Number(row.valor_total_creditos || 0),
         valorTotalDebitos: Number(row.valor_total_debitos || 0),
         createdAt: row.created_at,
-        account: row.account ? {
-          id: row.account.id,
-          nome: row.account.nome,
-          tipo: row.account.tipo,
-          saldoInicial: Number(row.account.saldo_inicial),
-          saldoAtual: Number(row.account.saldo_atual),
-          cor: row.account.cor,
-          icone: row.account.icone,
-          ativa: row.account.ativa,
-          createdAt: row.account.created_at,
-        } : undefined,
-        creditCard: row.creditCard ? {
-          id: row.creditCard.id,
-          nome: row.creditCard.nome,
-          limite: Number(row.creditCard.limite),
-          diaFechamento: row.creditCard.dia_fechamento,
-          diaVencimento: row.creditCard.dia_vencimento,
-          cor: row.creditCard.cor,
-          icone: row.creditCard.icone,
-          ativo: row.creditCard.ativo,
-          createdAt: row.creditCard.created_at,
-        } : undefined,
       }));
     } catch (err) {
       console.error('Error fetching OFX import history:', err);
