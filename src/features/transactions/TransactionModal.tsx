@@ -105,6 +105,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
   }, [isOpen, transactionToEdit, accounts, creditCards, categories]);
 
+  // Sync initial account, card, and category defaults if state is empty when data loads
+  useEffect(() => {
+    if (isOpen) {
+      if (!accountId && accounts.length > 0) setAccountId(accounts[0].id);
+      if (!cardId && creditCards.length > 0) setCardId(creditCards[0].id);
+      if (!categoryId && categories.length > 0) setCategoryId(categories[0].id);
+    }
+  }, [isOpen, accounts, creditCards, categories, accountId, cardId, categoryId]);
+
   // Live Category Intelligence Suggestion
   useEffect(() => {
     if (!description.trim() || description.length < 3) {
@@ -153,19 +162,43 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+  const triggerError = (msg: string) => {
+    setFormError(msg);
+    NotificationService.warning('Atenção ao salvar', msg);
+  };
+
   const handleSubmit = async () => {
     setFormError(null);
-    if (!description.trim()) {
-      setFormError('Informe a descrição da transação.');
+    const cleanDesc = description.trim();
+
+    if (!cleanDesc) {
+      triggerError('Informe a descrição da transação.');
       return;
     }
     if (!totalAmount || totalAmount <= 0) {
-      setFormError('Informe um valor válido maior que zero.');
+      triggerError('Informe um valor válido maior que zero.');
+      return;
+    }
+
+    const targetAccountId = paymentMethod === 'CONTA' ? (accountId || accounts[0]?.id || undefined) : undefined;
+    const targetCardId = paymentMethod === 'CARTAO' ? (cardId || creditCards[0]?.id || undefined) : undefined;
+    const targetCategoryId = isSplitMode ? undefined : (categoryId || categories[0]?.id || undefined);
+
+    if (paymentMethod === 'CONTA' && !targetAccountId) {
+      triggerError('Selecione uma conta bancária de origem/destino.');
+      return;
+    }
+    if (paymentMethod === 'CARTAO' && !targetCardId) {
+      triggerError('Selecione um cartão de crédito.');
+      return;
+    }
+    if (!isSplitMode && !targetCategoryId) {
+      triggerError('Selecione uma categoria para a transação.');
       return;
     }
 
     if (isSplitMode && !isSplitValid) {
-      setFormError('A soma dos splits deve ser exatamente igual ao valor total da transação.');
+      triggerError('A soma dos splits deve ser exatamente igual ao valor total da transação.');
       return;
     }
 
@@ -189,10 +222,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             tipo: transactionType,
             valor: totalAmount,
             data: date,
-            categoriaId: isSplitMode ? null : categoryId || null,
-            contaId: paymentMethod === 'CONTA' ? accountId || null : null,
-            cartaoId: paymentMethod === 'CARTAO' ? cardId || null : null,
-            descricao: description,
+            categoriaId: isSplitMode ? null : targetCategoryId || null,
+            contaId: paymentMethod === 'CONTA' ? targetAccountId || null : null,
+            cartaoId: paymentMethod === 'CARTAO' ? targetCardId || null : null,
+            descricao: cleanDesc,
             observacao: observacao || null,
           },
           formattedSplits
@@ -206,10 +239,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             tipo: transactionType,
             valor: totalAmount,
             data: date,
-            categoriaId: isSplitMode ? undefined : categoryId || undefined,
-            contaId: paymentMethod === 'CONTA' ? accountId || undefined : undefined,
-            cartaoId: paymentMethod === 'CARTAO' ? cardId || undefined : undefined,
-            descricao: description,
+            categoriaId: isSplitMode ? undefined : targetCategoryId || undefined,
+            contaId: paymentMethod === 'CONTA' ? targetAccountId || undefined : undefined,
+            cartaoId: paymentMethod === 'CARTAO' ? targetCardId || undefined : undefined,
+            descricao: cleanDesc,
             observacao: observacao || undefined,
             status: TransactionStatus.CONCLUIDO,
           },
@@ -227,10 +260,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             tipo: transactionType,
             valor: totalAmount,
             data: date,
-            categoriaId: isSplitMode ? undefined : categoryId || undefined,
-            contaId: paymentMethod === 'CONTA' ? accountId || undefined : undefined,
-            cartaoId: paymentMethod === 'CARTAO' ? cardId || undefined : undefined,
-            descricao: description,
+            categoriaId: isSplitMode ? undefined : targetCategoryId || undefined,
+            contaId: paymentMethod === 'CONTA' ? targetAccountId || undefined : undefined,
+            cartaoId: paymentMethod === 'CARTAO' ? targetCardId || undefined : undefined,
+            descricao: cleanDesc,
             observacao: observacao || undefined,
             status: TransactionStatus.CONCLUIDO,
           },
@@ -265,19 +298,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         }
         maxWidth="lg"
         footer={
-          <>
-            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-            <Button
-              variant="primary"
-              disabled={isSplitMode && !isSplitValid}
-              onClick={handleSubmit}
-              isLoading={isSubmitting}
-            >
-              {transactionToEdit ? 'Salvar Alterações' : 'Salvar Transação'}
-            </Button>
-          </>
+          <div className="w-full space-y-3">
+            {formError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-medium flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isSplitMode && !isSplitValid}
+                onClick={handleSubmit}
+                isLoading={isSubmitting}
+              >
+                {transactionToEdit ? 'Salvar Alterações' : 'Salvar Transação'}
+              </Button>
+            </div>
+          </div>
         }
       >
         <div className="space-y-4">
