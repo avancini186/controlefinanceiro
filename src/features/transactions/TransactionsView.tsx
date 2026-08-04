@@ -221,10 +221,11 @@ export const TransactionsView: React.FC = () => {
       header: 'Descrição & Categoria',
       accessorKey: 'descricao',
       sortable: true,
+      className: 'min-w-[160px] max-w-[260px]',
       cell: (tx) => (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
               tx.tipo === 'RECEITA'
                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                 : tx.tipo === 'TRANSFERENCIA'
@@ -232,18 +233,27 @@ export const TransactionsView: React.FC = () => {
                 : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
             }`}
           >
-            {tx.tipo === 'RECEITA' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+            {tx.tipo === 'RECEITA' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-slate-100">{tx.descricao}</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className="font-semibold text-slate-100 text-xs truncate" title={tx.descricao}>
+                {tx.descricao}
+              </p>
               {tx.splits && tx.splits.length > 0 && (
-                <Badge variant="info" size="sm" className="gap-1">
-                  <Layers className="w-3 h-3" /> Split ({tx.splits.length})
+                <Badge variant="info" size="sm" className="gap-1 shrink-0">
+                  <Layers className="w-3 h-3" /> ({tx.splits.length})
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p
+              className="text-[11px] text-slate-400 mt-0.5 truncate"
+              title={
+                tx.splits && tx.splits.length > 0
+                  ? tx.splits.map((s) => s.description || 'Item').join(', ')
+                  : tx.category?.nome || 'Sem Categoria'
+              }
+            >
               {tx.splits && tx.splits.length > 0
                 ? tx.splits.map((s) => s.description || 'Item').join(', ')
                 : tx.category?.nome || 'Sem Categoria'}
@@ -256,11 +266,13 @@ export const TransactionsView: React.FC = () => {
       header: 'Data',
       accessorKey: 'data',
       sortable: true,
+      className: 'whitespace-nowrap w-24',
       cell: (tx) => <span className="text-slate-400 font-mono text-xs">{formatDate(tx.data)}</span>,
     },
     {
       header: 'Conta / Cartão',
       accessorKey: 'conta',
+      className: 'whitespace-nowrap w-32',
       cell: (tx) => (
         <div className="flex items-center gap-2">
           {tx.account ? (
@@ -281,6 +293,7 @@ export const TransactionsView: React.FC = () => {
       header: 'Status',
       accessorKey: 'status',
       sortable: true,
+      className: 'whitespace-nowrap w-28',
       cell: (tx) => {
         const { label, variant } = getTransactionDisplayStatus(tx);
         return (
@@ -294,9 +307,10 @@ export const TransactionsView: React.FC = () => {
       header: 'Valor',
       accessorKey: 'valor',
       sortable: true,
+      className: 'whitespace-nowrap w-28 text-right',
       cell: (tx) => (
         <span
-          className={`font-mono font-bold text-sm ${
+          className={`font-mono font-bold text-xs ${
             tx.tipo === TransactionType.RECEITA
               ? 'text-emerald-400'
               : tx.tipo === TransactionType.TRANSFERENCIA
@@ -310,21 +324,22 @@ export const TransactionsView: React.FC = () => {
     },
     {
       header: 'Ações',
+      className: 'whitespace-nowrap w-16 text-center',
       cell: (tx) => (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1">
           <button
             onClick={() => openTransactionModal(tx)}
-            className="p-1.5 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors"
             title="Editar transação"
           >
-            <Edit2 className="w-4 h-4" />
+            <Edit2 className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setTxToDelete(tx)}
-            className="p-1.5 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
             title="Excluir transação"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       ),
