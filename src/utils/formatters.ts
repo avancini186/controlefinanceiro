@@ -23,3 +23,29 @@ export const formatMonthYear = (dateStr?: string): string => {
   const date = dateStr ? new Date(dateStr) : new Date();
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
 };
+
+export const getTransactionDisplayStatus = (tx: {
+  status?: string;
+  numeroParcela?: number | null;
+  totalParcelas?: number | null;
+}): { label: string; variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral' } => {
+  if (tx.status === 'CANCELADO') {
+    return { label: 'CANCELADO', variant: 'danger' };
+  }
+
+  const numParc = tx.numeroParcela;
+  const totParc = tx.totalParcelas;
+
+  if (totParc && totParc > 1) {
+    if (numParc && numParc >= totParc) {
+      return { label: 'CONCLUÍDO', variant: 'success' };
+    }
+    return { label: 'EM ANDAMENTO', variant: 'warning' };
+  }
+
+  if (tx.status === 'PENDENTE') {
+    return { label: 'PENDENTE', variant: 'warning' };
+  }
+
+  return { label: 'CONCLUÍDO', variant: 'success' };
+};

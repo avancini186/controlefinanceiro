@@ -8,6 +8,7 @@ import { useFinancialData } from '../../hooks/useFinancialData';
 import { useApp } from '../../context/AppContext';
 import { DashboardService } from '../../services/financial/DashboardService';
 import type { DashboardSummary, Transaction } from '../../types';
+import { formatDate, getTransactionDisplayStatus } from '../../utils/formatters';
 import {
   Wallet,
   ArrowDownLeft,
@@ -87,25 +88,38 @@ export const DashboardView: React.FC = () => {
     {
       header: 'Data',
       accessorKey: 'data',
-      cell: (tx) => <span className="text-slate-400 font-mono text-xs">{tx.data}</span>,
+      cell: (tx) => <span className="text-slate-400 font-mono text-xs">{formatDate(tx.data)}</span>,
     },
     {
       header: 'Conta / Cartão',
       accessorKey: 'account',
       cell: (tx) => (
-        <span className="text-slate-300 text-xs font-medium">
-          {tx.account?.nome || tx.creditCard?.nome || '-'}
-        </span>
+        <div className="flex items-center gap-2">
+          {tx.account ? (
+            <Badge variant="neutral" size="sm">
+              🏦 {tx.account.nome}
+            </Badge>
+          ) : tx.creditCard ? (
+            <Badge variant="info" size="sm">
+              💳 {tx.creditCard.nome}
+            </Badge>
+          ) : (
+            <span className="text-slate-500 text-xs">-</span>
+          )}
+        </div>
       ),
     },
     {
       header: 'Status',
       accessorKey: 'status',
-      cell: (tx) => (
-        <Badge variant={tx.status === 'CONCLUIDO' ? 'success' : tx.status === 'PENDENTE' ? 'warning' : 'danger'}>
-          {tx.status}
-        </Badge>
-      ),
+      cell: (tx) => {
+        const { label, variant } = getTransactionDisplayStatus(tx);
+        return (
+          <Badge variant={variant} size="sm">
+            {label}
+          </Badge>
+        );
+      },
     },
     {
       header: 'Valor',

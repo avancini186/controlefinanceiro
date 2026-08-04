@@ -10,7 +10,8 @@ import { TransactionService } from '../../services/financial/TransactionService'
 import type { Transaction } from '../../types';
 import { useTablePreferences } from '../../hooks/useTablePreferences';
 import { useApp } from '../../context/AppContext';
-import { TransactionType, TransactionStatus } from '../../types/enums';
+import { TransactionType } from '../../types/enums';
+import { formatDate, getTransactionDisplayStatus } from '../../utils/formatters';
 import {
   Plus,
   ArrowUpRight,
@@ -255,7 +256,7 @@ export const TransactionsView: React.FC = () => {
       header: 'Data',
       accessorKey: 'data',
       sortable: true,
-      cell: (tx) => <span className="text-slate-400 font-mono text-xs">{tx.data}</span>,
+      cell: (tx) => <span className="text-slate-400 font-mono text-xs">{formatDate(tx.data)}</span>,
     },
     {
       header: 'Conta / Cartão',
@@ -268,7 +269,7 @@ export const TransactionsView: React.FC = () => {
             </Badge>
           ) : tx.creditCard ? (
             <Badge variant="info" size="sm">
-              💳 {tx.creditCard.nome} {tx.faturaCompetencia ? `(${tx.faturaCompetencia})` : ''}
+              💳 {tx.creditCard.nome}
             </Badge>
           ) : (
             <span className="text-slate-500 text-xs">-</span>
@@ -280,20 +281,14 @@ export const TransactionsView: React.FC = () => {
       header: 'Status',
       accessorKey: 'status',
       sortable: true,
-      cell: (tx) => (
-        <Badge
-          variant={
-            tx.status === TransactionStatus.CONCLUIDO
-              ? 'success'
-              : tx.status === TransactionStatus.PENDENTE
-              ? 'warning'
-              : 'danger'
-          }
-          size="sm"
-        >
-          {tx.status}
-        </Badge>
-      ),
+      cell: (tx) => {
+        const { label, variant } = getTransactionDisplayStatus(tx);
+        return (
+          <Badge variant={variant} size="sm">
+            {label}
+          </Badge>
+        );
+      },
     },
     {
       header: 'Valor',
