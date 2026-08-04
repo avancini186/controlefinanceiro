@@ -41,12 +41,15 @@ export const BudgetCategoryModal: React.FC<BudgetCategoryModalProps> = ({
   });
 
   useEffect(() => {
-    reset({
-      categoriaId: expenseCategories[0]?.id || '',
-      limiteMensal: 500,
-      anoMes: currentAnoMes,
-    });
-  }, [categories, expenseCategories, currentAnoMes, reset, isOpen]);
+    if (isOpen) {
+      const expenseCats = categories.filter((c) => c.tipo === 'DESPESA');
+      reset({
+        categoriaId: expenseCats[0]?.id || '',
+        limiteMensal: 500,
+        anoMes: currentAnoMes,
+      });
+    }
+  }, [isOpen]);
 
   const onSubmit = async (data: BudgetCategoryFormData) => {
     try {

@@ -44,22 +44,24 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   const selectedIcon = watch('icone');
 
   useEffect(() => {
-    if (categoryToEdit) {
-      reset({
-        nome: categoryToEdit.nome,
-        icone: categoryToEdit.icone,
-        cor: categoryToEdit.cor,
-        tipo: categoryToEdit.tipo,
-      });
-    } else {
-      reset({
-        nome: '',
-        icone: 'Tag',
-        cor: '#64748b',
-        tipo: CategoryType.DESPESA,
-      });
+    if (isOpen) {
+      if (categoryToEdit) {
+        reset({
+          nome: categoryToEdit.nome,
+          icone: categoryToEdit.icone,
+          cor: categoryToEdit.cor,
+          tipo: categoryToEdit.tipo,
+        });
+      } else {
+        reset({
+          nome: '',
+          icone: 'Tag',
+          cor: '#64748b',
+          tipo: CategoryType.DESPESA,
+        });
+      }
     }
-  }, [categoryToEdit, reset, isOpen]);
+  }, [categoryToEdit, isOpen]);
 
   const onSubmit = async (data: CategoryFormData) => {
     try {
