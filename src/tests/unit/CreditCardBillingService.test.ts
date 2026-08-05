@@ -6,21 +6,21 @@ describe('CreditCardBillingService', () => {
   const diaVencimento = 10;
 
   it('assigns purchase on or before closing date to current month competencia', () => {
-    // 02/07 -> 2026-07
+    // 02/07 -> 2026-07 (antes do fechamento)
     const result1 = CreditCardBillingService.calculateBillingPeriod('2026-07-02', diaFechamento, diaVencimento);
     expect(result1.faturaCompetencia).toBe('2026-07');
     expect(result1.faturaAno).toBe(2026);
     expect(result1.faturaMes).toBe(7);
     expect(result1.faturaVencimento).toBe('2026-07-10');
 
-    // 03/07 -> 2026-07
+    // 03/07 -> 2026-07 (exatamente no dia do fechamento)
     const result2 = CreditCardBillingService.calculateBillingPeriod('2026-07-03', diaFechamento, diaVencimento);
     expect(result2.faturaCompetencia).toBe('2026-07');
     expect(result2.faturaVencimento).toBe('2026-07-10');
   });
 
   it('assigns purchase after closing date to next month competencia', () => {
-    // 04/07 -> 2026-08
+    // 04/07 -> 2026-08 (após o fechamento)
     const result1 = CreditCardBillingService.calculateBillingPeriod('2026-07-04', diaFechamento, diaVencimento);
     expect(result1.faturaCompetencia).toBe('2026-08');
     expect(result1.faturaAno).toBe(2026);
@@ -60,11 +60,33 @@ describe('CreditCardBillingService', () => {
     expect(p12.faturaCompetencia).toBe('2027-07');
   });
 
-  it('handles cards where diaVencimento is before or equal to diaFechamento (e.g. Closes 25th, Vences 5th)', () => {
-    // Fecha 25, Vence 5
-    // Purchase 10/07 (10 <= 25) -> Comp 2026-07 -> Vencimento 05/08/2026
-    const res = CreditCardBillingService.calculateBillingPeriod('2026-07-10', 25, 5);
-    expect(res.faturaCompetencia).toBe('2026-07');
-    expect(res.faturaVencimento).toBe('2026-08-05');
+  it('handles cards with different closing and due dates correctly', () => {
+    // Cartão A: Fecha 3, Vence 10 (Compra 04/07 -> Fatura 2026-08-10)
+    const cardA = CreditCardBillingService.calculateBillingPeriod('2026-07-04', 3, 10);
+    expect(cardA.faturaCompetencia).toBe('2026-08');
+    expect(cardA.faturaVencimento).toBe('2026-08-10');
+
+    // Cartão B: Fecha 20, Vence 5 (Compra 04/07 -> Fatura 2026-07-05)
+    const cardB = CreditCardBillingService.calculateBillingPeriod('2026-07-04', 20, 5);
+    expect(cardB.faturaCompetencia).toBe('2026-07');
+    expect(cardB.faturaVencimento).toBe('2026-08-05');
+  });
+
+  it('generateInstallmentSchedule creates full schedule with exact rounding', () => {
+    const schedule = CreditCardBillingService.generateInstallmentSchedule(
+      '2026-07-15',
+      4,
+      1000,
+      3,
+      10
+    );
+
+    expect(schedule).toHaveLength(4);
+    // 1000 / 4 = 250.00 each
+    expect(schedule[0].valor).toBe(250.0);
+    expect(schedule[0].faturaCompetencia).toBe('2026-08');
+    expect(schedule[1].faturaCompetencia).toBe('2026-09');
+    expect(schedule[2].faturaCompetencia).toBe('2026-10');
+    expect(schedule[3].faturaCompetencia).toBe('2026-11');
   });
 });

@@ -1,6 +1,8 @@
 import { DataService } from '../DataService';
 import { TransactionService } from './TransactionService';
-import type { Transaction, InstallmentGroup } from '../../types';
+import { CreditCardService } from './CreditCardService';
+import { CreditCardBillingService } from './CreditCardBillingService';
+import type { Transaction, InstallmentGroup, TransactionSplit } from '../../types';
 import { TransactionStatus } from '../../types/enums';
 
 export class InstallmentService {
@@ -9,15 +11,30 @@ export class InstallmentService {
    */
   static async createInstallmentPurchase(
     purchase: Omit<Transaction, 'id' | 'createdAt'>,
-    totalParcelas: number
+    totalParcelas: number,
+    splits?: Omit<TransactionSplit, 'id' | 'transactionId'>[]
   ): Promise<{ group: InstallmentGroup; transactions: Transaction[] }> {
     if (totalParcelas < 2) {
       throw new Error('Compra parcelada deve ter no mínimo 2 parcelas');
     }
 
-    const valorParcela = Number((purchase.valor / totalParcelas).toFixed(2));
-    // Adjustment for decimal rounding on last installment
-    const diferencaArredondamento = Number((purchase.valor - valorParcela * totalParcelas).toFixed(2));
+    let diaFechamento = 1;
+    let diaVencimento = 10;
+    if (purchase.cartaoId) {
+      const card = await CreditCardService.getById(purchase.cartaoId);
+      if (card) {
+        diaFechamento = card.diaFechamento;
+        diaVencimento = card.diaVencimento;
+      }
+    }
+
+    const schedule = CreditCardBillingService.generateInstallmentSchedule(
+      purchase.data,
+      totalParcelas,
+      purchase.valor,
+      diaFechamento,
+      diaVencimento
+    );
 
     // 1. Create Installment Group
     const groupRow = await DataService.insert('grupos_parcelamento', {
@@ -36,40 +53,185 @@ export class InstallmentService {
 
     // 2. Generate monthly transaction instances
     const createdTransactions: Transaction[] = [];
-    const dateParts = purchase.data.split('-').map(Number);
-    const baseYear = dateParts[0] || new Date().getFullYear();
-    const baseMonth = (dateParts[1] || 1) - 1; // 0-indexed
-    const baseDay = dateParts[2] || 1;
+    const baseDesc = purchase.descricao.replace(/\s*\(\d+\/\d+\)$/, '').trim();
 
-    for (let i = 1; i <= totalParcelas; i++) {
-      let targetYear = baseYear;
-      let targetMonth = baseMonth + (i - 1);
-      targetYear += Math.floor(targetMonth / 12);
-      targetMonth = ((targetMonth % 12) + 12) % 12;
-
-      // Handle month-end clamping (e.g., Jan 31 -> Feb 28/29)
-      const maxDaysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-      const targetDay = Math.min(baseDay, maxDaysInTargetMonth);
-
-      const formattedDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
-
-      // Add rounding difference to the first installment
-      const val = i === 1 ? Number((valorParcela + diferencaArredondamento).toFixed(2)) : valorParcela;
-
-      const tx = await TransactionService.create({
-        ...purchase,
-        valor: val,
-        data: formattedDate,
-        descricao: `${purchase.descricao} (${i}/${totalParcelas})`,
-        grupoParcelamentoId: group.id,
-        numeroParcela: i,
-        totalParcelas: totalParcelas,
-      });
+    for (const item of schedule) {
+      const tx = await TransactionService.create(
+        {
+          ...purchase,
+          valor: item.valor,
+          data: item.data,
+          descricao: `${baseDesc} (${item.numeroParcela}/${totalParcelas})`,
+          grupoParcelamentoId: group.id,
+          numeroParcela: item.numeroParcela,
+          totalParcelas: totalParcelas,
+          faturaCompetencia: item.faturaCompetencia,
+          faturaAno: item.faturaAno,
+          faturaMes: item.faturaMes,
+          faturaVencimento: item.faturaVencimento,
+        },
+        splits
+      );
 
       createdTransactions.push(tx);
     }
 
     return { group, transactions: createdTransactions };
+  }
+
+  /**
+   * Updates an entire installment group and recalculates all installment transactions.
+   */
+  static async updateInstallmentPurchase(
+    identifier: string,
+    updatedPurchase: Omit<Transaction, 'id' | 'createdAt'>,
+    totalParcelas: number,
+    splits?: TransactionSplit[]
+  ): Promise<{ group: InstallmentGroup; transactions: Transaction[] }> {
+    if (totalParcelas < 1) {
+      throw new Error('Quantidade de parcelas deve ser no mínimo 1');
+    }
+
+    // 1. Resolve groupId
+    let groupId = identifier;
+    let existingTxs = await DataService.selectAll('transacoes', {
+      column: 'grupo_parcelamento_id',
+      value: groupId,
+    });
+
+    if (existingTxs.length === 0) {
+      const txRow = await DataService.selectById('transacoes', identifier);
+      if (txRow && txRow.grupo_parcelamento_id) {
+        groupId = txRow.grupo_parcelamento_id;
+        existingTxs = await DataService.selectAll('transacoes', {
+          column: 'grupo_parcelamento_id',
+          value: groupId,
+        });
+      } else if (txRow) {
+        // Simple transaction converting to installment purchase
+        const newGroupResult = await this.createInstallmentPurchase(updatedPurchase, totalParcelas, splits);
+        await DataService.delete('transacoes', identifier);
+        return newGroupResult;
+      } else {
+        throw new Error(`Grupo de parcelamento ou transação não encontrada: ${identifier}`);
+      }
+    }
+
+    // Sort existing transactions by numero_parcela ascending
+    existingTxs.sort((a, b) => Number(a.numero_parcela || 0) - Number(b.numero_parcela || 0));
+
+    // 2. Fetch Card closing/due dates
+    let diaFechamento = 1;
+    let diaVencimento = 10;
+    if (updatedPurchase.cartaoId) {
+      const card = await CreditCardService.getById(updatedPurchase.cartaoId);
+      if (card) {
+        diaFechamento = card.diaFechamento;
+        diaVencimento = card.diaVencimento;
+      }
+    }
+
+    // 3. Generate updated schedule
+    const schedule = CreditCardBillingService.generateInstallmentSchedule(
+      updatedPurchase.data,
+      totalParcelas,
+      updatedPurchase.valor,
+      diaFechamento,
+      diaVencimento
+    );
+
+    // 4. Update Installment Group row
+    await DataService.update('grupos_parcelamento', groupId, {
+      descricao: updatedPurchase.descricao,
+      total_parcelas: totalParcelas,
+      valor_total: updatedPurchase.valor,
+    });
+
+    const groupRow = await DataService.selectById('grupos_parcelamento', groupId);
+    const group: InstallmentGroup = {
+      id: groupId,
+      descricao: groupRow?.descricao || updatedPurchase.descricao,
+      totalParcelas: groupRow?.total_parcelas ? Number(groupRow.total_parcelas) : totalParcelas,
+      valorTotal: groupRow?.valor_total ? Number(groupRow.valor_total) : updatedPurchase.valor,
+      createdAt: groupRow?.created_at || new Date().toISOString(),
+    };
+
+    const baseDesc = updatedPurchase.descricao.replace(/\s*\(\d+\/\d+\)$/, '').trim();
+    const updatedTransactions: Transaction[] = [];
+    const oldCount = existingTxs.length;
+
+    for (let i = 0; i < schedule.length; i++) {
+      const item = schedule[i];
+      const desc = totalParcelas > 1 ? `${baseDesc} (${item.numeroParcela}/${totalParcelas})` : baseDesc;
+
+      if (i < oldCount) {
+        const existingId = existingTxs[i].id;
+        await DataService.update('transacoes', existingId, {
+          tipo: updatedPurchase.tipo,
+          valor: item.valor,
+          data: item.data,
+          categoria_id: updatedPurchase.categoriaId || null,
+          conta_id: updatedPurchase.contaId || null,
+          cartao_id: updatedPurchase.cartaoId || null,
+          descricao: desc,
+          observacao: updatedPurchase.observacao || null,
+          numero_parcela: item.numeroParcela,
+          total_parcelas: totalParcelas,
+          fatura_competencia: item.faturaCompetencia,
+          fatura_ano: item.faturaAno,
+          fatura_mes: item.faturaMes,
+          fatura_vencimento: item.faturaVencimento,
+        });
+
+        if (splits !== undefined) {
+          const existingSplits = await DataService.selectAll('transacoes_splits', {
+            column: 'transacao_id',
+            value: existingId,
+          });
+          for (const s of existingSplits) {
+            await DataService.delete('transacoes_splits', s.id);
+          }
+          if (splits.length > 0) {
+            const splitRecords = splits.map((s) => ({
+              transacao_id: existingId,
+              categoria_id: s.categoryId,
+              valor: s.amount,
+              descricao: s.description || null,
+            }));
+            await DataService.insertMany('transacoes_splits', splitRecords);
+          }
+        }
+
+        const tx = await TransactionService.getById(existingId);
+        if (tx) updatedTransactions.push(tx);
+      } else {
+        const tx = await TransactionService.create(
+          {
+            ...updatedPurchase,
+            valor: item.valor,
+            data: item.data,
+            descricao: desc,
+            grupoParcelamentoId: groupId,
+            numeroParcela: item.numeroParcela,
+            totalParcelas: totalParcelas,
+            faturaCompetencia: item.faturaCompetencia,
+            faturaAno: item.faturaAno,
+            faturaMes: item.faturaMes,
+            faturaVencimento: item.faturaVencimento,
+          },
+          splits
+        );
+        updatedTransactions.push(tx);
+      }
+    }
+
+    if (oldCount > totalParcelas) {
+      for (let i = totalParcelas; i < oldCount; i++) {
+        await DataService.delete('transacoes', existingTxs[i].id);
+      }
+    }
+
+    return { group, transactions: updatedTransactions };
   }
 
   /**

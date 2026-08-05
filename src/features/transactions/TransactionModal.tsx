@@ -205,7 +205,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     setIsSubmitting(true);
     try {
       if (transactionToEdit) {
-        // Update existing transaction
+        // Update existing transaction or installment group
         const formattedSplits = isSplitMode
           ? splits.map((s) => ({
               id: s.id,
@@ -216,22 +216,43 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             }))
           : [];
 
-        await TransactionService.update(
-          transactionToEdit.id,
-          {
-            tipo: transactionType,
-            valor: totalAmount,
-            data: date,
-            categoriaId: isSplitMode ? null : targetCategoryId || null,
-            contaId: paymentMethod === 'CONTA' ? targetAccountId || null : null,
-            cartaoId: paymentMethod === 'CARTAO' ? targetCardId || null : null,
-            descricao: cleanDesc,
-            observacao: observacao || null,
-          },
-          formattedSplits
-        );
+        const isInstallmentTx = Boolean(transactionToEdit.grupoParcelamentoId) || (isInstallment && installmentsCount > 1);
 
-        NotificationService.success('Transação atualizada com sucesso!');
+        if (isInstallmentTx) {
+          await InstallmentService.updateInstallmentPurchase(
+            transactionToEdit.grupoParcelamentoId || transactionToEdit.id,
+            {
+              tipo: transactionType,
+              valor: totalAmount,
+              data: date,
+              categoriaId: isSplitMode ? undefined : targetCategoryId || undefined,
+              contaId: paymentMethod === 'CONTA' ? targetAccountId || undefined : undefined,
+              cartaoId: paymentMethod === 'CARTAO' ? targetCardId || undefined : undefined,
+              descricao: cleanDesc,
+              observacao: observacao || undefined,
+              status: transactionToEdit.status || TransactionStatus.CONCLUIDO,
+            },
+            installmentsCount,
+            formattedSplits
+          );
+          NotificationService.success('Parcelamento atualizado com sucesso!');
+        } else {
+          await TransactionService.update(
+            transactionToEdit.id,
+            {
+              tipo: transactionType,
+              valor: totalAmount,
+              data: date,
+              categoriaId: isSplitMode ? null : targetCategoryId || null,
+              contaId: paymentMethod === 'CONTA' ? targetAccountId || null : null,
+              cartaoId: paymentMethod === 'CARTAO' ? targetCardId || null : null,
+              descricao: cleanDesc,
+              observacao: observacao || null,
+            },
+            formattedSplits
+          );
+          NotificationService.success('Transação atualizada com sucesso!');
+        }
       } else if (isInstallment && installmentsCount > 1) {
         // Create Installment Series
         await InstallmentService.createInstallmentPurchase(

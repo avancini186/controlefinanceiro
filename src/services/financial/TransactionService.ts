@@ -99,7 +99,34 @@ export class TransactionService {
    */
   static async getById(id: string): Promise<Transaction | null> {
     const all = await this.getAll();
-    return all.find((t) => t.id === id) || null;
+    const found = all.find((t) => t.id === id);
+    if (found) return found;
+
+    const raw = await DataService.selectById('transacoes', id);
+    if (!raw) return null;
+    return {
+      id: raw.id,
+      tipo: raw.tipo as TransactionType,
+      valor: Number(raw.valor),
+      data: raw.data,
+      categoriaId: raw.categoria_id,
+      contaId: raw.conta_id,
+      cartaoId: raw.cartao_id,
+      descricao: raw.descricao,
+      observacao: raw.observacao,
+      status: raw.status as TransactionStatus,
+      grupoParcelamentoId: raw.grupo_parcelamento_id,
+      numeroParcela: raw.numero_parcela,
+      totalParcelas: raw.total_parcelas,
+      transferGroupId: raw.transfer_group_id,
+      direcaoTransferencia: raw.direcao_transferencia,
+      importHash: raw.import_hash,
+      faturaCompetencia: raw.fatura_competencia,
+      faturaAno: raw.fatura_ano,
+      faturaMes: raw.fatura_mes,
+      faturaVencimento: raw.fatura_vencimento,
+      createdAt: raw.created_at,
+    };
   }
 
   /**
@@ -195,6 +222,10 @@ export class TransactionService {
       transferGroupId: created.transfer_group_id,
       direcaoTransferencia: created.direcao_transferencia,
       importHash: created.import_hash,
+      faturaCompetencia: created.fatura_competencia,
+      faturaAno: created.fatura_ano,
+      faturaMes: created.fatura_mes,
+      faturaVencimento: created.fatura_vencimento,
       createdAt: created.created_at,
       splits: createdSplits,
     };
