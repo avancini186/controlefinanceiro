@@ -166,6 +166,7 @@ export interface OFXParsedTransaction {
   isDuplicate: boolean;
   selected: boolean;
   isCreditIgnored?: boolean;
+  ignoreReason?: string;
 }
 
 export interface OFXImportRecord {

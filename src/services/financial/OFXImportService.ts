@@ -4,7 +4,83 @@ import type { OFXParsedTransaction, OFXImportRecord } from '../../types';
 import { TransactionType, TransactionStatus } from '../../types/enums';
 import { parseInstallmentFromDescription } from '../../utils/installmentParser';
 
+export const IGNORED_DESCRIPTION_PATTERNS = [
+  'ESTORNO',
+  'REVERSAO',
+  'REVERSÃO',
+  'PAGAMENTO FATURA',
+  'PAGTO FATURA',
+  'PAGAMENTO CARTÃO',
+  'PAGAMENTO CARTAO',
+  'CRÉDITO FATURA',
+  'CREDITO FATURA',
+  'CRÉDITO EM FATURA',
+  'CREDITO EM FATURA',
+  'PAGAMENTO RECEBIDO',
+  'AJUSTE',
+  'AJUSTE FINANCEIRO',
+  'AJUSTE DE LIMITE',
+  'AJUSTE CONTÁBIL',
+  'CRÉDITO',
+  'CREDITO',
+];
+
+export function normalizeText(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export class OFXImportService {
+  /**
+   * Identifies the reason why a transaction should be unselected automatically, if any.
+   */
+  static getUnselectReason(transaction: { isDuplicate?: boolean; descricao: string }): string | undefined {
+    if (transaction.isDuplicate) {
+      return 'Duplicada';
+    }
+
+    const norm = normalizeText(transaction.descricao);
+    if (!norm) return undefined;
+
+    const paymentPatterns = ['pagamento fatura', 'pagto fatura', 'pagamento cartao', 'pagto cartao'];
+    if (paymentPatterns.some((p) => norm.includes(p))) {
+      return 'Pagamento de fatura';
+    }
+
+    const creditPatterns = ['credito fatura', 'credito em fatura', 'pagamento recebido', 'credito'];
+    if (creditPatterns.some((p) => norm.includes(p))) {
+      return 'Crédito da fatura';
+    }
+
+    const reversalPatterns = ['estorno', 'reversao'];
+    if (reversalPatterns.some((p) => norm.includes(p))) {
+      return 'Estorno';
+    }
+
+    const adjustmentPatterns = ['ajuste'];
+    if (adjustmentPatterns.some((p) => norm.includes(p))) {
+      return 'Ajuste';
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Exclusive method responsible for deciding whether an OFX transaction starts selected by default.
+   */
+  static shouldPreselectTransaction(transaction: { isDuplicate?: boolean; descricao: string }): boolean {
+    if (transaction.isDuplicate) {
+      return false;
+    }
+    const reason = this.getUnselectReason(transaction);
+    return reason === undefined;
+  }
+
   /**
    * Generates a unique deterministic SHA-like hash based on: data + valor + descricao.
    */
@@ -48,14 +124,9 @@ export class OFXImportService {
 
       let tipo = rawValor < 0 ? TransactionType.DESPESA : TransactionType.RECEITA;
       let isCreditIgnored = false;
-      let selected = true;
 
       if (isCreditCard) {
         if (rawValor > 0 || tipo === TransactionType.RECEITA) {
-          if (!importCardCredits) {
-            isCreditIgnored = true;
-            selected = false;
-          }
           tipo = TransactionType.RECEITA;
         } else {
           tipo = TransactionType.DESPESA;
@@ -79,7 +150,7 @@ export class OFXImportService {
 
       const hash = this.generateHash(formattedDate, absValor, rawDesc);
 
-      results.push({
+      const baseTx = {
         fitId,
         tipo,
         valor: Number(absValor.toFixed(2)),
@@ -88,8 +159,24 @@ export class OFXImportService {
         memo: memoMatch ? memoMatch[1].trim() : undefined,
         hash,
         isDuplicate: false,
+      };
+
+      let selected = this.shouldPreselectTransaction(baseTx);
+      let ignoreReason = this.getUnselectReason(baseTx);
+
+      if (isCreditCard && (rawValor > 0 || tipo === TransactionType.RECEITA) && !importCardCredits) {
+        isCreditIgnored = true;
+        selected = false;
+        if (!ignoreReason) {
+          ignoreReason = 'Crédito da fatura';
+        }
+      }
+
+      results.push({
+        ...baseTx,
         selected,
         isCreditIgnored,
+        ignoreReason: selected ? undefined : ignoreReason,
       });
     }
 
@@ -120,10 +207,17 @@ export class OFXImportService {
 
     return parsed.map((item) => {
       const isDup = existingHashes.has(item.hash);
-      return {
+      const updatedItem = {
         ...item,
         isDuplicate: isDup,
-        selected: isDup ? false : item.selected,
+      };
+      const selected = this.shouldPreselectTransaction(updatedItem);
+      const ignoreReason = this.getUnselectReason(updatedItem);
+
+      return {
+        ...updatedItem,
+        selected,
+        ignoreReason: selected ? undefined : ignoreReason,
       };
     });
   }

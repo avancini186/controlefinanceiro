@@ -188,15 +188,6 @@ export const OFXImportView: React.FC = () => {
         <div>
           <span className="font-semibold text-slate-100 block">{item.descricao}</span>
           {item.memo && <span className="text-[10px] text-slate-400 font-mono block">{item.memo}</span>}
-          {item.isCreditIgnored ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded mt-0.5">
-              Estorno/Crédito Ignorado (Cartão)
-            </span>
-          ) : item.isDuplicate ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded mt-0.5">
-              <AlertCircle className="w-3 h-3" /> Transação Duplicada (Ignorada)
-            </span>
-          ) : null}
         </div>
       ),
     },
@@ -227,6 +218,21 @@ export const OFXImportView: React.FC = () => {
           {item.tipo === 'RECEITA' ? '+' : '-'}{formatCurrency(item.valor)}
         </span>
       ),
+    },
+    {
+      header: 'Motivo',
+      cell: (item) => {
+        if (item.selected) {
+          return <span className="text-slate-500 text-xs">-</span>;
+        }
+        const reason = item.ignoreReason || (item.isDuplicate ? 'Duplicada' : 'Ignorada');
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+            {item.isDuplicate && <AlertCircle className="w-3 h-3" />}
+            {reason}
+          </span>
+        );
+      },
     },
   ];
 
