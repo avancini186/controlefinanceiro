@@ -175,7 +175,13 @@ export const TransactionsView: React.FC = () => {
     // Advanced Filters
     if (filters.startDate && tx.data < filters.startDate) return false;
     if (filters.endDate && tx.data > filters.endDate) return false;
-    if (filters.categoriaId && tx.categoriaId !== filters.categoriaId) return false;
+    if (filters.categoriaId) {
+      if (filters.categoriaId === 'NONE') {
+        if (tx.categoriaId) return false;
+      } else if (tx.categoriaId !== filters.categoriaId) {
+        return false;
+      }
+    }
     if (filters.contaId && tx.contaId !== filters.contaId) return false;
     if (filters.cartaoId && tx.cartaoId !== filters.cartaoId) return false;
     if (filters.tipo && tx.tipo !== filters.tipo) return false;
@@ -600,6 +606,7 @@ export const TransactionsView: React.FC = () => {
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200"
               >
                 <option value="">Todas as Categorias</option>
+                <option value="NONE">Sem Categoria</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nome}
