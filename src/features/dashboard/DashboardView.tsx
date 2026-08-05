@@ -1,42 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { StatCard } from '../../components/ui/StatCard';
-import { Table } from '../../components/ui/Table';
-import type { Column } from '../../components/ui/Table';
-import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { useFinancialData } from '../../hooks/useFinancialData';
 import { useApp } from '../../context/AppContext';
 import { DashboardService } from '../../services/financial/DashboardService';
-import type { DashboardSummary, Transaction } from '../../types';
-import { formatDate, getTransactionDisplayStatus } from '../../utils/formatters';
+import { BudgetService } from '../../services/financial/BudgetService';
+import type { DashboardSummary, BudgetCategory } from '../../types';
 import {
   Wallet,
   ArrowDownLeft,
   ArrowUpRight,
   CreditCard as CardIcon,
-  TrendingUp,
   Plus,
   ArrowLeftRight,
   PieChart,
   Activity,
-  Sparkles,
-  Layers,
+  ChevronRight,
+  ChevronDown,
+  PiggyBank,
+  Target,
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
-  const { refreshData } = useFinancialData();
+  const { transactions, refreshData } = useFinancialData();
   const { openTransactionModal, openTransferModal } = useApp();
 
   const [dashboardData, setDashboardData] = useState<DashboardSummary | null>(null);
+  const [budgets, setBudgets] = useState<BudgetCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Accordions retráteis - estado inicial FECHADOS por padrão
+  const [isCashFlowOpen, setIsCashFlowOpen] = useState(false);
+  const [isAccountDistOpen, setIsAccountDistOpen] = useState(false);
+  const [isCardDistOpen, setIsCardDistOpen] = useState(false);
+
+  const currentAnoMes = new Date().toISOString().slice(0, 7);
 
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    DashboardService.getDashboardData()
-      .then((data) => {
+
+    Promise.all([
+      DashboardService.getDashboardData(),
+      BudgetService.getBudgetsByPeriod(currentAnoMes),
+    ])
+      .then(([dashData, budgetData]) => {
         if (isMounted) {
-          setDashboardData(data);
+          setDashboardData(dashData);
+          setBudgets(budgetData);
           setIsLoading(false);
         }
       })
@@ -48,94 +59,10 @@ export const DashboardView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [refreshData]);
+  }, [currentAnoMes, refreshData]);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-
-  const columns: Column<Transaction>[] = [
-    {
-      header: 'Descrição & Categoria',
-      accessorKey: 'descricao',
-      cell: (tx) => (
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-              tx.tipo === 'RECEITA'
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : tx.tipo === 'TRANSFERENCIA'
-                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-            }`}
-          >
-            {tx.tipo === 'RECEITA' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
-          </div>
-          <div>
-            <p className="font-semibold text-slate-100">{tx.descricao}</p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {tx.splits && tx.splits.length > 0 ? (
-                <span className="flex items-center gap-1 text-indigo-400 font-medium">
-                  <Layers className="w-3 h-3" /> Split ({tx.splits.length} categorias)
-                </span>
-              ) : (
-                tx.category?.nome || 'Sem Categoria'
-              )}
-            </p>
-          </div>
-        </div>
-      ),
-    },
-    {
-      header: 'Data',
-      accessorKey: 'data',
-      cell: (tx) => <span className="text-slate-400 font-mono text-xs">{formatDate(tx.data)}</span>,
-    },
-    {
-      header: 'Conta / Cartão',
-      accessorKey: 'account',
-      cell: (tx) => (
-        <div className="flex items-center gap-2">
-          {tx.account ? (
-            <Badge variant="neutral" size="sm">
-              🏦 {tx.account.nome}
-            </Badge>
-          ) : tx.creditCard ? (
-            <Badge variant="info" size="sm">
-              💳 {tx.creditCard.nome}
-            </Badge>
-          ) : (
-            <span className="text-slate-500 text-xs">-</span>
-          )}
-        </div>
-      ),
-    },
-    {
-      header: 'Status',
-      accessorKey: 'status',
-      cell: (tx) => {
-        const { label, variant } = getTransactionDisplayStatus(tx);
-        return (
-          <Badge variant={variant} size="sm">
-            {label}
-          </Badge>
-        );
-      },
-    },
-    {
-      header: 'Valor',
-      accessorKey: 'valor',
-      className: 'text-right',
-      cell: (tx) => (
-        <span
-          className={`font-semibold font-mono text-base ${
-            tx.tipo === 'RECEITA' ? 'text-emerald-400' : 'text-slate-100'
-          }`}
-        >
-          {tx.tipo === 'RECEITA' ? '+' : '-'} {formatCurrency(tx.valor)}
-        </span>
-      ),
-    },
-  ];
 
   if (isLoading || !dashboardData) {
     return (
@@ -145,8 +72,97 @@ export const DashboardView: React.FC = () => {
     );
   }
 
-  const { balance, monthlyCashFlow, accountDistribution, cardDistribution, topCategories, projectedBalance, recentTransactions } =
+  const { balance, monthlyCashFlow, accountDistribution, cardDistribution, topCategories } =
     dashboardData;
+
+  const receitasMes = balance.totalReceitas;
+  const despesasMes = balance.totalDespesas;
+  const saldoMes = receitasMes - despesasMes;
+
+  // Cor dinâmica do Saldo do Mês (Verde se positivo, Vermelho se negativo, Cinza se zero)
+  const saldoColorHex = saldoMes > 0 ? '#10b981' : saldoMes < 0 ? '#f43f5e' : '#94a3b8';
+
+  // Total aplicado em investimentos durante o mês
+  const totalInvestimentos = transactions
+    .filter((tx) => {
+      if (!tx.data.startsWith(currentAnoMes)) return false;
+      if (tx.status === 'CANCELADO') return false;
+
+      const catName = (tx.category?.nome || '').toLowerCase();
+      const desc = (tx.descricao || '').toLowerCase();
+      const isInvCat =
+        catName.includes('investimento') ||
+        catName.includes('tesouro') ||
+        catName.includes('cdb') ||
+        catName.includes('etf') ||
+        catName.includes('fii') ||
+        catName.includes('ação') ||
+        catName.includes('acoes') ||
+        catName.includes('cripto') ||
+        catName.includes('previdência') ||
+        catName.includes('previdencia') ||
+        catName.includes('aplicação') ||
+        catName.includes('aplicacao');
+
+      const isInvDesc =
+        desc.includes('investimento') ||
+        desc.includes('tesouro') ||
+        desc.includes('cdb') ||
+        desc.includes('etf') ||
+        desc.includes('fii') ||
+        desc.includes('ações') ||
+        desc.includes('cripto') ||
+        desc.includes('previdência') ||
+        desc.includes('previdencia');
+
+      return isInvCat || isInvDesc;
+    })
+    .reduce((acc, tx) => acc + tx.valor, 0);
+
+  // Consumo Mensal do Orçamento ordenado do maior % para o menor %
+  const budgetsWithConsumption = budgets
+    .map((b) => {
+      let spent = 0;
+      for (const tx of transactions) {
+        if (tx.status === 'CANCELADO' || !tx.data.startsWith(currentAnoMes)) continue;
+        if (tx.tipo !== 'DESPESA') continue;
+
+        if (tx.splits && tx.splits.length > 0) {
+          for (const s of tx.splits) {
+            if (s.categoryId === b.categoriaId) {
+              spent += s.amount;
+            }
+          }
+        } else if (tx.categoriaId === b.categoriaId) {
+          spent += tx.valor;
+        }
+      }
+
+      const percent = Math.round((spent / (b.limiteMensal || 1)) * 100);
+
+      // Cores por faixa de percentual: Até 70% verde, 70-90% amarelo, 90-100% laranja, >100% vermelho
+      let barColorClass = 'bg-emerald-500';
+      let textColorClass = 'text-emerald-400';
+      if (percent > 100) {
+        barColorClass = 'bg-rose-500';
+        textColorClass = 'text-rose-400';
+      } else if (percent > 90) {
+        barColorClass = 'bg-amber-500';
+        textColorClass = 'text-amber-400';
+      } else if (percent > 70) {
+        barColorClass = 'bg-yellow-500';
+        textColorClass = 'text-yellow-400';
+      }
+
+      return {
+        ...b,
+        spent,
+        percent,
+        barColorClass,
+        textColorClass,
+      };
+    })
+    .sort((a, b) => b.percent - a.percent);
 
   // Max value calculation for cash flow chart scaling
   const maxCashFlowVal = Math.max(
@@ -160,7 +176,7 @@ export const DashboardView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-100 tracking-tight">Resumo Executivo</h2>
-          <p className="text-xs text-slate-400">Indicadores consolidados e fluxo de caixa em tempo real</p>
+          <p className="text-xs text-slate-400">Indicadores gerenciais e controle orçamentário do período</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" icon={<ArrowLeftRight className="w-4 h-4" />} onClick={openTransferModal}>
@@ -172,99 +188,41 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main KPI Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
-        <StatCard
-          title="Saldo Global"
-          value={formatCurrency(balance.saldoTotal)}
-          subtitle="Soma das contas ativas"
-          icon={<Wallet className="w-5 h-5" />}
-          colorHex="#6366f1"
-        />
-        <StatCard
-          title="Previsão de Saldo"
-          value={formatCurrency(projectedBalance)}
-          subtitle="Considerando pendentes"
-          icon={<Sparkles className="w-5 h-5" />}
-          colorHex="#3b82f6"
-        />
+      {/* 4 Indicadores Principais em Grid Fluida (Receitas | Despesas | Saldo | Investimentos) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title="Receitas no Mês"
-          value={formatCurrency(balance.totalReceitas)}
-          subtitle="Entradas concluídas"
-          icon={<ArrowDownLeft className="w-5 h-5" />}
+          value={formatCurrency(receitasMes)}
+          subtitle="Recebido no período"
+          icon={<ArrowDownLeft className="w-5 h-5 text-emerald-400" />}
           colorHex="#10b981"
         />
         <StatCard
           title="Despesas no Mês"
-          value={formatCurrency(balance.totalDespesas)}
-          subtitle="Saídas concluídas"
-          icon={<ArrowUpRight className="w-5 h-5" />}
+          value={formatCurrency(despesasMes)}
+          subtitle="Gasto no período"
+          icon={<ArrowUpRight className="w-5 h-5 text-rose-400" />}
           colorHex="#f43f5e"
         />
         <StatCard
-          title="Faturas Aberta"
-          value={formatCurrency(balance.faturasPendentes)}
-          subtitle="Compromisso em cartões"
-          icon={<CardIcon className="w-5 h-5" />}
-          colorHex="#f59e0b"
+          title="Saldo do Mês"
+          value={formatCurrency(saldoMes)}
+          subtitle="Resultado do período"
+          icon={<Wallet className="w-5 h-5 text-slate-200" />}
+          colorHex={saldoColorHex}
+        />
+        <StatCard
+          title="Investimentos no Mês"
+          value={formatCurrency(totalInvestimentos)}
+          subtitle="Aplicado no período"
+          icon={<PiggyBank className="w-5 h-5 text-sky-400" />}
+          colorHex="#38bdf8"
         />
       </div>
 
-      {/* Advanced Charts Section: Cash Flow & Net Worth Evolution */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Monthly Cash Flow Chart (Receitas vs Despesas) */}
-        <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-indigo-400" />
-              <h3 className="font-bold text-slate-100 text-base">Fluxo de Caixa Mensal (Últimos 6 Meses)</h3>
-            </div>
-            <div className="flex items-center gap-4 text-xs font-medium">
-              <span className="flex items-center gap-1.5 text-emerald-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Receitas
-              </span>
-              <span className="flex items-center gap-1.5 text-rose-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Despesas
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-6 gap-3 items-end h-52 pt-4 border-b border-slate-800 pb-4">
-            {monthlyCashFlow.map((pt) => {
-              const recHeight = Math.round((pt.receitas / maxCashFlowVal) * 100);
-              const despHeight = Math.round((pt.despesas / maxCashFlowVal) * 100);
-
-              return (
-                <div key={pt.monthLabel} className="flex flex-col items-center gap-2 h-full justify-end group">
-                  <div className="w-full flex items-end justify-center gap-1.5 h-full">
-                    {/* Receita Bar */}
-                    <div
-                      className="w-1/2 bg-emerald-500/80 hover:bg-emerald-400 rounded-t-md transition-all relative"
-                      style={{ height: `${Math.max(4, recHeight)}%` }}
-                    >
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-950 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 whitespace-nowrap border border-slate-800 z-10">
-                        +{formatCurrency(pt.receitas)}
-                      </div>
-                    </div>
-                    {/* Despesa Bar */}
-                    <div
-                      className="w-1/2 bg-rose-500/80 hover:bg-rose-400 rounded-t-md transition-all relative"
-                      style={{ height: `${Math.max(4, despHeight)}%` }}
-                    >
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-950 px-2 py-1 rounded text-[10px] font-mono text-rose-400 whitespace-nowrap border border-slate-800 z-10">
-                        -{formatCurrency(pt.despesas)}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-mono">{pt.monthLabel}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Expense Category Breakdown Chart */}
+      {/* Primeira Seção: Despesas por Categoria & Consumo Mensal do Orçamento */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Despesas por Categoria (Sempre aberto) */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
           <div className="flex items-center gap-2">
             <PieChart className="w-5 h-5 text-indigo-400" />
@@ -272,10 +230,10 @@ export const DashboardView: React.FC = () => {
           </div>
 
           {topCategories.length === 0 ? (
-            <p className="text-xs text-slate-500 py-12 text-center">Nenhuma despesa registrada.</p>
+            <p className="text-xs text-slate-500 py-12 text-center">Nenhuma despesa registrada no período.</p>
           ) : (
-            <div className="space-y-3 pt-2">
-              {topCategories.slice(0, 5).map((item) => (
+            <div className="space-y-3.5 pt-2">
+              {topCategories.slice(0, 6).map((item) => (
                 <div key={item.category.id} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-200 font-medium">{item.category.nome}</span>
@@ -294,71 +252,201 @@ export const DashboardView: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Account & Card Distribution Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Account Balance Distribution */}
+        {/* Consumo Mensal do Orçamento (Novo Painel) */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
           <div className="flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-bold text-slate-100 text-base">Distribuição de Saldo por Conta</h3>
+            <Target className="w-5 h-5 text-emerald-400" />
+            <h3 className="font-bold text-slate-100 text-base">Consumo Mensal do Orçamento</h3>
           </div>
 
-          <div className="space-y-3 pt-2">
-            {accountDistribution.map((acc, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-200 font-medium">{acc.accountName}</span>
-                  <span className="font-mono text-slate-300 font-semibold">
-                    {formatCurrency(acc.balance)} ({acc.percentage}%)
-                  </span>
+          {budgetsWithConsumption.length === 0 ? (
+            <p className="text-xs text-slate-500 py-12 text-center">
+              Nenhum orçamento configurado para o mês atual.
+            </p>
+          ) : (
+            <div className="space-y-3.5 pt-2">
+              {budgetsWithConsumption.map((b) => (
+                <div key={b.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-200 font-medium">{b.category?.nome || 'Categoria'}</span>
+                    <div className="flex items-center gap-2 font-mono">
+                      <span className="text-slate-300">
+                        {formatCurrency(b.spent)} / {formatCurrency(b.limiteMensal)}
+                      </span>
+                      <span className={`font-bold ${b.textColorClass}`}>
+                        {b.percent}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${b.barColorClass}`}
+                      style={{ width: `${Math.min(100, b.percent)}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${acc.percentage}%`, backgroundColor: acc.color }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Credit Card Invoice Distribution */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-amber-400" />
-            <h3 className="font-bold text-slate-100 text-base">Faturas por Cartão de Crédito</h3>
-          </div>
-
-          <div className="space-y-3 pt-2">
-            {cardDistribution.map((card, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-200 font-medium">{card.cardName}</span>
-                  <span className="font-mono text-amber-400 font-semibold">
-                    {formatCurrency(card.invoiceTotal)} / {formatCurrency(card.limit)}
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                  <div
-                    className="h-full bg-gradient-to-r from-indigo-500 to-amber-500 rounded-full transition-all"
-                    style={{ width: `${card.percentage}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Recent Transactions Section */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-100 text-base">Últimas Transações Registradas</h3>
+      {/* Painéis Analíticos Retráteis (Accordion - Fechados por Padrão) */}
+      <div className="space-y-4">
+        {/* Accordion 1: Fluxo de Caixa Mensal */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl backdrop-blur-md overflow-hidden transition-all">
+          <button
+            type="button"
+            onClick={() => setIsCashFlowOpen(!isCashFlowOpen)}
+            className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-800/40 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Activity className="w-5 h-5 text-indigo-400" />
+              <div>
+                <h3 className="font-bold text-slate-100 text-base">Fluxo de Caixa Mensal</h3>
+                <p className="text-xs text-slate-400">Histórico dos últimos 6 meses</p>
+              </div>
+            </div>
+            <div className="p-2 rounded-xl bg-slate-800 text-slate-400">
+              {isCashFlowOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </div>
+          </button>
+
+          {isCashFlowOpen && (
+            <div className="p-6 pt-0 border-t border-slate-800/60 animate-fade-in space-y-6">
+              <div className="flex items-center justify-end gap-4 text-xs font-medium pt-4">
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Receitas
+                </span>
+                <span className="flex items-center gap-1.5 text-rose-400">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Despesas
+                </span>
+              </div>
+
+              <div className="grid grid-cols-6 gap-3 items-end h-52 border-b border-slate-800 pb-4">
+                {monthlyCashFlow.map((pt) => {
+                  const recHeight = Math.round((pt.receitas / maxCashFlowVal) * 100);
+                  const despHeight = Math.round((pt.despesas / maxCashFlowVal) * 100);
+
+                  return (
+                    <div key={pt.monthLabel} className="flex flex-col items-center gap-2 h-full justify-end group">
+                      <div className="w-full flex items-end justify-center gap-1.5 h-full">
+                        {/* Receita Bar */}
+                        <div
+                          className="w-1/2 bg-emerald-500/80 hover:bg-emerald-400 rounded-t-md transition-all relative"
+                          style={{ height: `${Math.max(4, recHeight)}%` }}
+                        >
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-950 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 whitespace-nowrap border border-slate-800 z-10">
+                            +{formatCurrency(pt.receitas)}
+                          </div>
+                        </div>
+                        {/* Despesa Bar */}
+                        <div
+                          className="w-1/2 bg-rose-500/80 hover:bg-rose-400 rounded-t-md transition-all relative"
+                          style={{ height: `${Math.max(4, despHeight)}%` }}
+                        >
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-950 px-2 py-1 rounded text-[10px] font-mono text-rose-400 whitespace-nowrap border border-slate-800 z-10">
+                            -{formatCurrency(pt.despesas)}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">{pt.monthLabel}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
-        <Table columns={columns} data={recentTransactions} keyExtractor={(tx) => tx.id} />
+
+        {/* Accordion 2: Distribuição do Saldo por Conta */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl backdrop-blur-md overflow-hidden transition-all">
+          <button
+            type="button"
+            onClick={() => setIsAccountDistOpen(!isAccountDistOpen)}
+            className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-800/40 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Wallet className="w-5 h-5 text-indigo-400" />
+              <div>
+                <h3 className="font-bold text-slate-100 text-base">Distribuição do Saldo por Conta</h3>
+                <p className="text-xs text-slate-400">Saldos individuais e proporção no patrimônio</p>
+              </div>
+            </div>
+            <div className="p-2 rounded-xl bg-slate-800 text-slate-400">
+              {isAccountDistOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </div>
+          </button>
+
+          {isAccountDistOpen && (
+            <div className="p-6 pt-0 border-t border-slate-800/60 animate-fade-in space-y-3.5 pt-4">
+              {accountDistribution.map((acc, idx) => (
+                <div key={idx} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-200 font-medium">{acc.accountName}</span>
+                    <span className="font-mono text-slate-300 font-semibold">
+                      {formatCurrency(acc.balance)} ({acc.percentage}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${acc.percentage}%`, backgroundColor: acc.color }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Accordion 3: Faturas por Cartão de Crédito */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl backdrop-blur-md overflow-hidden transition-all">
+          <button
+            type="button"
+            onClick={() => setIsCardDistOpen(!isCardDistOpen)}
+            className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-800/40 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <CardIcon className="w-5 h-5 text-amber-400" />
+              <div>
+                <h3 className="font-bold text-slate-100 text-base">Faturas por Cartão de Crédito</h3>
+                <p className="text-xs text-slate-400">Limites, comprometimento e limite disponível</p>
+              </div>
+            </div>
+            <div className="p-2 rounded-xl bg-slate-800 text-slate-400">
+              {isCardDistOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </div>
+          </button>
+
+          {isCardDistOpen && (
+            <div className="p-6 pt-0 border-t border-slate-800/60 animate-fade-in space-y-3.5 pt-4">
+              {cardDistribution.map((card, idx) => {
+                const disponivel = Math.max(0, card.limit - card.invoiceTotal);
+                return (
+                  <div key={idx} className="space-y-1.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
+                      <span className="text-slate-200 font-medium">{card.cardName}</span>
+                      <div className="font-mono text-xs flex flex-wrap items-center gap-3">
+                        <span className="text-amber-400 font-semibold">Fatura: {formatCurrency(card.invoiceTotal)}</span>
+                        <span className="text-slate-400">Limite: {formatCurrency(card.limit)}</span>
+                        <span className="text-emerald-400">Disponível: {formatCurrency(disponivel)}</span>
+                        <span className="text-slate-400 font-bold">({card.percentage}%)</span>
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-amber-500 rounded-full transition-all"
+                        style={{ width: `${card.percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
