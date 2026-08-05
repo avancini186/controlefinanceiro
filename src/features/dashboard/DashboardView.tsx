@@ -17,6 +17,7 @@ import {
   Activity,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   PiggyBank,
   Target,
 } from 'lucide-react';
@@ -33,6 +34,10 @@ export const DashboardView: React.FC = () => {
   const [isCashFlowOpen, setIsCashFlowOpen] = useState(false);
   const [isAccountDistOpen, setIsAccountDistOpen] = useState(false);
   const [isCardDistOpen, setIsCardDistOpen] = useState(false);
+
+  // Estado dos cards expansíveis de categoria (Padrão: compacto mostrando 6 itens)
+  const [isTopCategoriesExpanded, setIsTopCategoriesExpanded] = useState(false);
+  const [isBudgetsExpanded, setIsBudgetsExpanded] = useState(false);
 
   const currentAnoMes = new Date().toISOString().slice(0, 7);
 
@@ -164,6 +169,15 @@ export const DashboardView: React.FC = () => {
     })
     .sort((a, b) => b.percent - a.percent);
 
+  // Listas filtradas pela expansão (compacta: 6 itens, expandida: todas)
+  const visibleTopCategories = isTopCategoriesExpanded
+    ? topCategories
+    : topCategories.slice(0, 6);
+
+  const visibleBudgets = isBudgetsExpanded
+    ? budgetsWithConsumption
+    : budgetsWithConsumption.slice(0, 6);
+
   // Max value calculation for cash flow chart scaling
   const maxCashFlowVal = Math.max(
     ...monthlyCashFlow.flatMap((p) => [p.receitas, p.despesas]),
@@ -220,20 +234,27 @@ export const DashboardView: React.FC = () => {
         />
       </div>
 
-      {/* Primeira Seção: Despesas por Categoria & Consumo Mensal do Orçamento */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Despesas por Categoria (Sempre aberto) */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
-          <div className="flex items-center gap-2">
-            <PieChart className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-bold text-slate-100 text-base">Despesas por Categoria</h3>
+      {/* Primeira Seção: Despesas por Categoria & Consumo Mensal do Orçamento (Cards Expansíveis) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Despesas por Categoria */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4 transition-all duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <PieChart className="w-5 h-5 text-indigo-400" />
+              <h3 className="font-bold text-slate-100 text-base">Despesas por Categoria</h3>
+            </div>
+            {topCategories.length > 0 && (
+              <span className="text-[11px] font-mono font-medium text-slate-400">
+                {topCategories.length} {topCategories.length === 1 ? 'categoria' : 'categorias'}
+              </span>
+            )}
           </div>
 
           {topCategories.length === 0 ? (
             <p className="text-xs text-slate-500 py-12 text-center">Nenhuma despesa registrada no período.</p>
           ) : (
-            <div className="space-y-3.5 pt-2">
-              {topCategories.slice(0, 6).map((item) => (
+            <div className="space-y-3.5 pt-2 transition-all duration-300">
+              {visibleTopCategories.map((item) => (
                 <div key={item.category.id} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-200 font-medium">{item.category.nome}</span>
@@ -243,21 +264,48 @@ export const DashboardView: React.FC = () => {
                   </div>
                   <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                     <div
-                      className="h-full rounded-full transition-all"
+                      className="h-full rounded-full transition-all duration-300"
                       style={{ width: `${item.percentage}%`, backgroundColor: item.category.cor }}
                     />
                   </div>
                 </div>
               ))}
+
+              {topCategories.length > 6 && (
+                <div className="pt-3 border-t border-slate-800/60 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsTopCategoriesExpanded(!isTopCategoriesExpanded)}
+                    className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 transition-colors py-1 px-3 rounded-lg hover:bg-indigo-500/10"
+                  >
+                    {isTopCategoriesExpanded ? (
+                      <>
+                        <ChevronUp className="w-4 h-4" /> Mostrar menos
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4" /> Mostrar todas ({topCategories.length})
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Consumo Mensal do Orçamento (Novo Painel) */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
-          <div className="flex items-center gap-2">
-            <Target className="w-5 h-5 text-emerald-400" />
-            <h3 className="font-bold text-slate-100 text-base">Consumo Mensal do Orçamento</h3>
+        {/* Consumo Mensal do Orçamento */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4 transition-all duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-emerald-400" />
+              <h3 className="font-bold text-slate-100 text-base">Consumo Mensal do Orçamento</h3>
+            </div>
+            {budgetsWithConsumption.length > 0 && (
+              <span className="text-[11px] font-mono font-medium text-slate-400">
+                {budgetsWithConsumption.length} {budgetsWithConsumption.length === 1 ? 'orçamento' : 'orçamentos'}
+              </span>
+            )}
           </div>
 
           {budgetsWithConsumption.length === 0 ? (
@@ -265,8 +313,8 @@ export const DashboardView: React.FC = () => {
               Nenhum orçamento configurado para o mês atual.
             </p>
           ) : (
-            <div className="space-y-3.5 pt-2">
-              {budgetsWithConsumption.map((b) => (
+            <div className="space-y-3.5 pt-2 transition-all duration-300">
+              {visibleBudgets.map((b) => (
                 <div key={b.id} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-200 font-medium">{b.category?.nome || 'Categoria'}</span>
@@ -287,6 +335,26 @@ export const DashboardView: React.FC = () => {
                   </div>
                 </div>
               ))}
+
+              {budgetsWithConsumption.length > 6 && (
+                <div className="pt-3 border-t border-slate-800/60 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsBudgetsExpanded(!isBudgetsExpanded)}
+                    className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition-colors py-1 px-3 rounded-lg hover:bg-emerald-500/10"
+                  >
+                    {isBudgetsExpanded ? (
+                      <>
+                        <ChevronUp className="w-4 h-4" /> Mostrar menos
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4" /> Mostrar todas ({budgetsWithConsumption.length})
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
