@@ -5,7 +5,7 @@ import { AccountService } from './AccountService';
 import { CreditCardService } from './CreditCardService';
 import { CreditCardBillingService } from './CreditCardBillingService';
 import { ConfigService } from './ConfigService';
-import { parseInstallmentFromDescription } from '../../utils/installmentParser';
+import { parseInstallmentFromDescription, buildInstallmentDescription } from '../../utils/installmentParser';
 import type { Transaction } from '../../types';
 
 export type IssueSeverity = 'ALTA' | 'MEDIA' | 'BAIXA';
@@ -484,10 +484,7 @@ export class IntegrityService {
           const targetD = Math.min(baseD, maxDays);
           const nextDate = `${targetY}-${String(targetM + 1).padStart(2, '0')}-${String(targetD).padStart(2, '0')}`;
 
-          const nextDesc = tx.descricao.replace(
-            /(?:parcela|parc\.?)\s*\d{1,2}\s*[/|de]\s*\d{1,2}/i,
-            `Parcela ${next}/${totParc}`
-          );
+          const nextDesc = buildInstallmentDescription(baseDesc, next, totParc);
 
           await TransactionService.create({
             tipo: tx.tipo,
@@ -495,7 +492,7 @@ export class IntegrityService {
             data: nextDate,
             cartaoId: tx.cartaoId,
             categoriaId: tx.categoriaId,
-            descricao: nextDesc !== tx.descricao ? nextDesc : `${baseDesc} - Parcela ${next}/${totParc}`,
+            descricao: nextDesc,
             observacao: `Gerado automaticamente via reparo de parcelamento`,
             status: tx.status,
             importHash: tx.importHash ? `${tx.importHash}_P${next}` : undefined,

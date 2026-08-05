@@ -4,6 +4,7 @@ import { CreditCardService } from './CreditCardService';
 import { CreditCardBillingService } from './CreditCardBillingService';
 import type { Transaction, InstallmentGroup, TransactionSplit } from '../../types';
 import { TransactionStatus } from '../../types/enums';
+import { extractBaseDescription, buildInstallmentDescription } from '../../utils/installmentParser';
 
 export class InstallmentService {
   /**
@@ -36,9 +37,11 @@ export class InstallmentService {
       diaVencimento
     );
 
+    const baseDesc = extractBaseDescription(purchase.descricao);
+
     // 1. Create Installment Group
     const groupRow = await DataService.insert('grupos_parcelamento', {
-      descricao: purchase.descricao,
+      descricao: baseDesc,
       total_parcelas: totalParcelas,
       valor_total: purchase.valor,
     });
@@ -53,15 +56,15 @@ export class InstallmentService {
 
     // 2. Generate monthly transaction instances
     const createdTransactions: Transaction[] = [];
-    const baseDesc = purchase.descricao.replace(/\s*\(\d+\/\d+\)$/, '').trim();
 
     for (const item of schedule) {
+      const desc = buildInstallmentDescription(baseDesc, item.numeroParcela, totalParcelas);
       const tx = await TransactionService.create(
         {
           ...purchase,
           valor: item.valor,
           data: item.data,
-          descricao: `${baseDesc} (${item.numeroParcela}/${totalParcelas})`,
+          descricao: desc,
           grupoParcelamentoId: group.id,
           numeroParcela: item.numeroParcela,
           totalParcelas: totalParcelas,
@@ -140,9 +143,11 @@ export class InstallmentService {
       diaVencimento
     );
 
+    const baseDesc = extractBaseDescription(updatedPurchase.descricao);
+
     // 4. Update Installment Group row
     await DataService.update('grupos_parcelamento', groupId, {
-      descricao: updatedPurchase.descricao,
+      descricao: baseDesc,
       total_parcelas: totalParcelas,
       valor_total: updatedPurchase.valor,
     });
@@ -150,19 +155,18 @@ export class InstallmentService {
     const groupRow = await DataService.selectById('grupos_parcelamento', groupId);
     const group: InstallmentGroup = {
       id: groupId,
-      descricao: groupRow?.descricao || updatedPurchase.descricao,
+      descricao: groupRow?.descricao || baseDesc,
       totalParcelas: groupRow?.total_parcelas ? Number(groupRow.total_parcelas) : totalParcelas,
       valorTotal: groupRow?.valor_total ? Number(groupRow.valor_total) : updatedPurchase.valor,
       createdAt: groupRow?.created_at || new Date().toISOString(),
     };
 
-    const baseDesc = updatedPurchase.descricao.replace(/\s*\(\d+\/\d+\)$/, '').trim();
     const updatedTransactions: Transaction[] = [];
     const oldCount = existingTxs.length;
 
     for (let i = 0; i < schedule.length; i++) {
       const item = schedule[i];
-      const desc = totalParcelas > 1 ? `${baseDesc} (${item.numeroParcela}/${totalParcelas})` : baseDesc;
+      const desc = buildInstallmentDescription(baseDesc, item.numeroParcela, totalParcelas);
 
       if (i < oldCount) {
         const existingId = existingTxs[i].id;

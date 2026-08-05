@@ -2,7 +2,7 @@ import { DataService } from '../DataService';
 import { TransactionService } from './TransactionService';
 import type { OFXParsedTransaction, OFXImportRecord } from '../../types';
 import { TransactionType, TransactionStatus } from '../../types/enums';
-import { parseInstallmentFromDescription } from '../../utils/installmentParser';
+import { parseInstallmentFromDescription, buildInstallmentDescription } from '../../utils/installmentParser';
 
 export const IGNORED_DESCRIPTION_PATTERNS = [
   'ESTORNO',
@@ -254,12 +254,13 @@ export class OFXImportService {
       const parsedInst = parseInstallmentFromDescription(t.descricao);
       const numParc = parsedInst.numeroParcela;
       const totParc = parsedInst.totalParcelas;
+      const baseDesc = parsedInst.baseDescription;
 
       let group: any = null;
       if (numParc && totParc && totParc > 1) {
         try {
           group = await DataService.insert('grupos_parcelamento', {
-            descricao: parsedInst.baseDescription,
+            descricao: baseDesc,
             valor_total: t.valor * totParc,
             total_parcelas: totParc,
           });
@@ -268,13 +269,17 @@ export class OFXImportService {
         }
       }
 
+      const currentDesc = (numParc && totParc && totParc > 1)
+        ? buildInstallmentDescription(baseDesc, numParc, totParc)
+        : t.descricao;
+
       await TransactionService.create({
         tipo: t.tipo,
         valor: t.valor,
         data: t.data,
         contaId: targetObj.type === 'CONTA' ? targetObj.id : undefined,
         cartaoId: targetObj.type === 'CARTAO' ? targetObj.id : undefined,
-        descricao: t.descricao,
+        descricao: currentDesc,
         observacao: `Importado via extrato OFX (FitID: ${t.fitId || 'N/A'})`,
         status: TransactionStatus.CONCLUIDO,
         importHash: t.hash,
@@ -300,17 +305,14 @@ export class OFXImportService {
           const targetD = Math.min(baseD, maxDays);
           const nextDate = `${targetY}-${String(targetM + 1).padStart(2, '0')}-${String(targetD).padStart(2, '0')}`;
 
-          const nextDesc = t.descricao.replace(
-            /(?:parcela|parc\.?)\s*\d{1,2}\s*[/|de]\s*\d{1,2}/i,
-            `Parcela ${next}/${totParc}`
-          );
+          const nextDesc = buildInstallmentDescription(baseDesc, next, totParc);
 
           await TransactionService.create({
             tipo: t.tipo,
             valor: t.valor,
             data: nextDate,
             cartaoId: targetObj.id,
-            descricao: nextDesc !== t.descricao ? nextDesc : `${parsedInst.baseDescription} - Parcela ${next}/${totParc}`,
+            descricao: nextDesc,
             observacao: `Gerado automaticamente via importação parcelada (Origem: FitID ${t.fitId || 'N/A'})`,
             status: TransactionStatus.CONCLUIDO,
             importHash: `${t.hash}_P${next}`,

@@ -361,4 +361,42 @@ describe('InstallmentService - Unit Tests', () => {
     expect(pAfter.transactions[0].data).toBe('2026-08-04');
     expect(pAfter.transactions[0].faturaCompetencia).toBe('2026-08');
   });
+
+  it('9. should correctly update installment purchase descriptions when input is a derived description like "Hering - Parcela 2/6"', async () => {
+    const initial = await InstallmentService.createInstallmentPurchase(
+      {
+        tipo: TransactionType.DESPESA,
+        valor: 600,
+        data: '2026-07-04',
+        descricao: 'Hering - Parcela 2/6',
+        status: TransactionStatus.CONCLUIDO,
+        cartaoId: 'card_visa',
+      },
+      6
+    );
+
+    expect(initial.group.descricao).toBe('Hering');
+    expect(initial.transactions[0].descricao).toBe('Hering - Parcela 1/6');
+    expect(initial.transactions[1].descricao).toBe('Hering - Parcela 2/6');
+    expect(initial.transactions[5].descricao).toBe('Hering - Parcela 6/6');
+
+    // Update with input "Hering - Parcela 2/6"
+    const updated = await InstallmentService.updateInstallmentPurchase(
+      initial.group.id,
+      {
+        tipo: TransactionType.DESPESA,
+        valor: 600,
+        data: '2026-07-04',
+        descricao: 'Hering - Parcela 2/6',
+        status: TransactionStatus.CONCLUIDO,
+        cartaoId: 'card_visa',
+      },
+      6
+    );
+
+    expect(updated.group.descricao).toBe('Hering');
+    expect(updated.transactions[0].descricao).toBe('Hering - Parcela 1/6');
+    expect(updated.transactions[1].descricao).toBe('Hering - Parcela 2/6');
+    expect(updated.transactions[5].descricao).toBe('Hering - Parcela 6/6');
+  });
 });
