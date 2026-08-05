@@ -89,8 +89,8 @@ describe('InstallmentService - Unit Tests', () => {
     expect(Number(sum.toFixed(2))).toBe(100.0);
   });
 
-  it('2. should edit a 4x purchase changing only the purchase date', async () => {
-    // Initial 4x purchase on 2026-06-23 (Card Visa: closing 3, due 10 -> starts in July fatura)
+  it('2. should edit a 4x purchase changing only the purchase date (23/06 -> 04/07)', async () => {
+    // Initial 4x purchase on 2026-06-23 (Card Visa: closing 3, due 10 -> Day 23 > 3 -> Parcela 1 in July fatura)
     const initial = await InstallmentService.createInstallmentPurchase(
       {
         tipo: TransactionType.DESPESA,
@@ -103,10 +103,19 @@ describe('InstallmentService - Unit Tests', () => {
       4
     );
 
+    expect(initial.transactions[0].data).toBe('2026-07-23');
     expect(initial.transactions[0].faturaCompetencia).toBe('2026-07');
+
+    expect(initial.transactions[1].data).toBe('2026-08-23');
+    expect(initial.transactions[1].faturaCompetencia).toBe('2026-08');
+
+    expect(initial.transactions[2].data).toBe('2026-09-23');
+    expect(initial.transactions[2].faturaCompetencia).toBe('2026-09');
+
+    expect(initial.transactions[3].data).toBe('2026-10-23');
     expect(initial.transactions[3].faturaCompetencia).toBe('2026-10');
 
-    // Update date to 04/07/2026 (after closing day 3 -> starts in August fatura)
+    // Update date to 04/07/2026 (after closing day 3 -> Parcela 1 in August fatura)
     const updated = await InstallmentService.updateInstallmentPurchase(
       initial.group.id,
       {
@@ -121,15 +130,21 @@ describe('InstallmentService - Unit Tests', () => {
     );
 
     expect(updated.transactions).toHaveLength(4);
-    expect(updated.transactions[0].data).toBe('2026-07-04');
+    expect(updated.transactions[0].data).toBe('2026-08-04');
     expect(updated.transactions[0].faturaCompetencia).toBe('2026-08');
+
+    expect(updated.transactions[1].data).toBe('2026-09-04');
     expect(updated.transactions[1].faturaCompetencia).toBe('2026-09');
+
+    expect(updated.transactions[2].data).toBe('2026-10-04');
     expect(updated.transactions[2].faturaCompetencia).toBe('2026-10');
+
+    expect(updated.transactions[3].data).toBe('2026-11-04');
     expect(updated.transactions[3].faturaCompetencia).toBe('2026-11');
   });
 
   it('3. should edit purchase changing credit card', async () => {
-    // Initial with Visa (closing 3, due 10)
+    // Initial with Visa (closing 3, due 10) on 04/07 -> Day 4 > 3 -> Parcela 1 in August
     const initial = await InstallmentService.createInstallmentPurchase(
       {
         tipo: TransactionType.DESPESA,
@@ -142,10 +157,11 @@ describe('InstallmentService - Unit Tests', () => {
       3
     );
 
+    expect(initial.transactions[0].data).toBe('2026-08-04');
     expect(initial.transactions[0].faturaCompetencia).toBe('2026-08');
 
     // Change card to Mastercard (closing 20, due 5)
-    // On 04/07, day 4 <= 20 -> faturaCompetencia is 2026-07, faturaVencimento is 2026-08-05
+    // On 04/07, day 4 <= 20 -> Parcela 1 in July (2026-07-04)
     const updated = await InstallmentService.updateInstallmentPurchase(
       initial.group.id,
       {
@@ -160,6 +176,7 @@ describe('InstallmentService - Unit Tests', () => {
     );
 
     expect(updated.transactions[0].cartaoId).toBe('card_master');
+    expect(updated.transactions[0].data).toBe('2026-07-04');
     expect(updated.transactions[0].faturaCompetencia).toBe('2026-07');
     expect(updated.transactions[0].faturaVencimento).toBe('2026-08-05');
   });
@@ -262,7 +279,6 @@ describe('InstallmentService - Unit Tests', () => {
     );
 
     expect(updated.transactions).toHaveLength(6);
-    // Group total parcelas in db must be 6
     expect(updated.group.totalParcelas).toBe(6);
   });
 
@@ -300,7 +316,7 @@ describe('InstallmentService - Unit Tests', () => {
   });
 
   it('8. should calculate purchase before, on, and after closing date correctly', async () => {
-    // Before closing (02/07, closing 3)
+    // Before closing (02/07, closing 3) -> Parcela 1 in July (2026-07-02)
     const pBefore = await InstallmentService.createInstallmentPurchase(
       {
         tipo: TransactionType.DESPESA,
@@ -312,9 +328,10 @@ describe('InstallmentService - Unit Tests', () => {
       },
       2
     );
+    expect(pBefore.transactions[0].data).toBe('2026-07-02');
     expect(pBefore.transactions[0].faturaCompetencia).toBe('2026-07');
 
-    // On closing day (03/07, closing 3)
+    // On closing day (03/07, closing 3) -> Parcela 1 in July (2026-07-03)
     const pOn = await InstallmentService.createInstallmentPurchase(
       {
         tipo: TransactionType.DESPESA,
@@ -326,9 +343,10 @@ describe('InstallmentService - Unit Tests', () => {
       },
       2
     );
+    expect(pOn.transactions[0].data).toBe('2026-07-03');
     expect(pOn.transactions[0].faturaCompetencia).toBe('2026-07');
 
-    // After closing (04/07, closing 3)
+    // After closing (04/07, closing 3) -> Parcela 1 in August (2026-08-04)
     const pAfter = await InstallmentService.createInstallmentPurchase(
       {
         tipo: TransactionType.DESPESA,
@@ -340,6 +358,7 @@ describe('InstallmentService - Unit Tests', () => {
       },
       2
     );
+    expect(pAfter.transactions[0].data).toBe('2026-08-04');
     expect(pAfter.transactions[0].faturaCompetencia).toBe('2026-08');
   });
 });

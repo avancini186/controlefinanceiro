@@ -8,7 +8,7 @@ export interface BillingPeriodInfo {
 export interface InstallmentScheduleItem {
   numeroParcela: number;
   totalParcelas: number;
-  data: string; // YYYY-MM-DD for this installment
+  data: string; // YYYY-MM-DD representing financial competence date
   valor: number;
   faturaCompetencia: string; // YYYY-MM
   faturaAno: number;
@@ -113,6 +113,11 @@ export class CreditCardBillingService {
   /**
    * Generates a complete installment schedule containing billing periods,
    * due dates, and rounded amounts for all N installments.
+   *
+   * OFFICIAL SYSTEM ARCHITECTURE RULE:
+   * The `data` field of each installment represents the FINANCIAL DATE (competence month)
+   * in which that installment enters the credit card invoice and budget/cash flow.
+   * The physical day of the purchase is preserved, but the month/year matches the invoice competence.
    */
   static generateInstallmentSchedule(
     purchaseDate: string,
@@ -129,38 +134,62 @@ export class CreditCardBillingService {
     const diferencaArredondamento = Number((valorTotal - valorParcela * totalParcelas).toFixed(2));
 
     const dateParts = purchaseDate.split('-').map(Number);
-    const baseYear = dateParts[0] || new Date().getFullYear();
-    const baseMonth = (dateParts[1] || 1) - 1; // 0-indexed
     const baseDay = dateParts[2] || 1;
+
+    // Determine base invoice competence for Parcela 1
+    const baseBilling = this.calculateBillingPeriod(purchaseDate, diaFechamento, diaVencimento);
 
     const schedule: InstallmentScheduleItem[] = [];
 
     for (let i = 1; i <= totalParcelas; i++) {
-      let targetYear = baseYear;
-      let targetMonth = baseMonth + (i - 1);
-      targetYear += Math.floor(targetMonth / 12);
-      targetMonth = ((targetMonth % 12) + 12) % 12;
+      let compYear = baseBilling.faturaAno;
+      let compMonth = baseBilling.faturaMes + (i - 1);
 
-      // Handle month-end clamping (e.g., Jan 31 -> Feb 28/29)
-      const maxDaysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-      const targetDay = Math.min(baseDay, maxDaysInTargetMonth);
+      while (compMonth > 12) {
+        compMonth -= 12;
+        compYear += 1;
+      }
 
-      const formattedDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+      // Preserve purchase day, clamped to maximum days in target competence month
+      const maxDaysInCompMonth = new Date(compYear, compMonth, 0).getDate();
+      const actualDay = Math.min(baseDay, maxDaysInCompMonth);
+
+      const compMonthStr = String(compMonth).padStart(2, '0');
+      const actualDayStr = String(actualDay).padStart(2, '0');
+      const financialDate = `${compYear}-${compMonthStr}-${actualDayStr}`;
+
+      const faturaCompetencia = `${compYear}-${compMonthStr}`;
+
+      // Calculate vencimento for this specific invoice competence
+      let vencYear = compYear;
+      let vencMonth = compMonth;
+
+      if (diaVencimento <= diaFechamento) {
+        vencMonth += 1;
+        if (vencMonth > 12) {
+          vencMonth = 1;
+          vencYear += 1;
+        }
+      }
+
+      const daysInVencMonth = new Date(vencYear, vencMonth, 0).getDate();
+      const actualVencDay = Math.min(diaVencimento, daysInVencMonth);
+      const vencMonthStr = String(vencMonth).padStart(2, '0');
+      const vencDayStr = String(actualVencDay).padStart(2, '0');
+      const faturaVencimento = `${vencYear}-${vencMonthStr}-${vencDayStr}`;
 
       // Add rounding difference to the first installment
       const val = i === 1 ? Number((valorParcela + diferencaArredondamento).toFixed(2)) : valorParcela;
 
-      const billing = this.calculateBillingPeriod(formattedDate, diaFechamento, diaVencimento);
-
       schedule.push({
         numeroParcela: i,
         totalParcelas,
-        data: formattedDate,
+        data: financialDate,
         valor: val,
-        faturaCompetencia: billing.faturaCompetencia,
-        faturaAno: billing.faturaAno,
-        faturaMes: billing.faturaMes,
-        faturaVencimento: billing.faturaVencimento,
+        faturaCompetencia,
+        faturaAno: compYear,
+        faturaMes: compMonth,
+        faturaVencimento,
       });
     }
 

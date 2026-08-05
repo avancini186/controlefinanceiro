@@ -72,9 +72,10 @@ describe('CreditCardBillingService', () => {
     expect(cardB.faturaVencimento).toBe('2026-08-05');
   });
 
-  it('generateInstallmentSchedule creates full schedule with exact rounding', () => {
+  it('generateInstallmentSchedule creates full schedule with financial competence dates and exact rounding', () => {
+    // Purchase 23/06/2026 (4x, Fecha 3, Vence 10) -> Day 23 > 3 -> Parcela 1 in Julho (2026-07-23)
     const schedule = CreditCardBillingService.generateInstallmentSchedule(
-      '2026-07-15',
+      '2026-06-23',
       4,
       1000,
       3,
@@ -82,11 +83,17 @@ describe('CreditCardBillingService', () => {
     );
 
     expect(schedule).toHaveLength(4);
-    // 1000 / 4 = 250.00 each
     expect(schedule[0].valor).toBe(250.0);
-    expect(schedule[0].faturaCompetencia).toBe('2026-08');
-    expect(schedule[1].faturaCompetencia).toBe('2026-09');
-    expect(schedule[2].faturaCompetencia).toBe('2026-10');
-    expect(schedule[3].faturaCompetencia).toBe('2026-11');
+    expect(schedule[0].data).toBe('2026-07-23');
+    expect(schedule[0].faturaCompetencia).toBe('2026-07');
+
+    expect(schedule[1].data).toBe('2026-08-23');
+    expect(schedule[1].faturaCompetencia).toBe('2026-08');
+
+    expect(schedule[2].data).toBe('2026-09-23');
+    expect(schedule[2].faturaCompetencia).toBe('2026-09');
+
+    expect(schedule[3].data).toBe('2026-10-23');
+    expect(schedule[3].faturaCompetencia).toBe('2026-10');
   });
 });
