@@ -95,6 +95,20 @@ export class TransactionService {
   }
 
   /**
+   * Checks whether a transaction belongs to a specific competencia month (YYYY-MM).
+   * For credit card transactions, evaluates faturaCompetencia if set, otherwise data's YYYY-MM.
+   * For non-card transactions, evaluates data's YYYY-MM.
+   */
+  static belongsToCompetencia(tx: Transaction, anoMes: string): boolean {
+    if (!anoMes) return true;
+    if (tx.cartaoId) {
+      const comp = tx.faturaCompetencia || tx.data.substring(0, 7);
+      return comp === anoMes;
+    }
+    return tx.data.startsWith(anoMes);
+  }
+
+  /**
    * Retrieves a single transaction by ID.
    */
   static async getById(id: string): Promise<Transaction | null> {

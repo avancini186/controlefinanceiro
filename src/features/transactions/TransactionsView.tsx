@@ -24,8 +24,6 @@ import {
   Eye,
   EyeOff,
   Search,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   TrendingUp,
   TrendingDown,
@@ -34,6 +32,8 @@ import {
   CreditCard,
   X,
 } from 'lucide-react';
+
+import { MonthSelector } from '../../components/ui/MonthSelector';
 
 interface TransactionFilterState {
   startDate: string;
@@ -49,7 +49,7 @@ interface TransactionFilterState {
 
 export const TransactionsView: React.FC = () => {
   const { transactions, categories, accounts, creditCards, refreshData } = useFinancialData();
-  const { openTransactionModal } = useApp();
+  const { openTransactionModal, selectedMonth, setSelectedMonth } = useApp();
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
@@ -58,33 +58,7 @@ export const TransactionsView: React.FC = () => {
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Current System Month (YYYY-MM)
-  const now = new Date();
-  const currentSystemMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentSystemMonth);
   const [filterByMonthActive, setFilterByMonthActive] = useState<boolean>(true);
-
-  const handlePrevMonth = () => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const d = new Date(y, m - 2, 1);
-    const prevM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedMonth(prevM);
-  };
-
-  const handleNextMonth = () => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const d = new Date(y, m, 1);
-    const nextM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedMonth(nextM);
-  };
-
-  const formatMonthName = (yearMonth: string) => {
-    const [y, m] = yearMonth.split('-').map(Number);
-    const d = new Date(y, m - 1, 1);
-    const name = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: 'numeric' }).format(d);
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  };
 
   // Table Preferences Persistence via localStorage
   const { preferences, setSearchQuery, setSort, toggleColumnVisibility, setFilters, resetPreferences } =
@@ -146,15 +120,8 @@ export const TransactionsView: React.FC = () => {
   const filteredTransactions = transactions.filter((tx) => {
     // Filter by selected month if month filter is active
     if (filterByMonthActive && selectedMonth) {
-      if (tx.cartaoId) {
-        const comp = tx.faturaCompetencia || tx.data.substring(0, 7);
-        if (comp !== selectedMonth) {
-          return false;
-        }
-      } else {
-        if (!tx.data.startsWith(selectedMonth)) {
-          return false;
-        }
+      if (!TransactionService.belongsToCompetencia(tx, selectedMonth)) {
+        return false;
       }
     }
 
@@ -367,40 +334,9 @@ export const TransactionsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Seletor Simples de Mês: Seta Esquerda [<] Mês/Ano [>] Seta Direita */}
+          {/* Seletor Simples de Mês */}
           {filterByMonthActive ? (
-            <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 shadow-sm shrink-0">
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-                title="Mês Anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              <div className="relative flex items-center px-2">
-                <span className="text-xs font-semibold text-slate-100 min-w-[90px] text-center font-mono">
-                  {formatMonthName(selectedMonth)}
-                </span>
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  title="Clique para escolher o mês"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-                title="Próximo Mês"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            <MonthSelector value={selectedMonth} onChange={setSelectedMonth} />
           ) : (
             <Button
               variant="outline"

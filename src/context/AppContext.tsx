@@ -24,6 +24,10 @@ export interface AppContextType {
   isLoading: boolean;
   error: string | null;
 
+  // Selected Month / Competencia (YYYY-MM)
+  selectedMonth: string;
+  setSelectedMonth: (month: string) => void;
+
   // Real App Data from Supabase Services
   accounts: Account[];
   creditCards: CreditCard[];
@@ -51,6 +55,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+
+  const now = new Date();
+  const currentSystemMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentSystemMonth);
 
   const openTransactionModal = useCallback((txToEdit?: Transaction) => {
     setEditingTransaction(txToEdit || null);
@@ -139,6 +147,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closeTransferModal: () => setIsTransferModalOpen(false),
         isLoading,
         error,
+        selectedMonth,
+        setSelectedMonth,
         accounts,
         creditCards,
         categories,

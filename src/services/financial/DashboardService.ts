@@ -19,8 +19,13 @@ export class DashboardService {
    * category breakdowns, account/card distributions, and balance projections
    * are computed EXCLUSIVELY in this service. ZERO calculation in UI components.
    */
-  static async getDashboardData(): Promise<DashboardSummary> {
-    const balance = await BalanceService.calculateSummary();
+  static async getDashboardData(anoMes?: string): Promise<DashboardSummary> {
+    const targetAnoMes = anoMes || new Date().toISOString().slice(0, 7);
+    const [yearStr, monthStr] = targetAnoMes.split('-');
+    const targetYear = parseInt(yearStr, 10);
+    const targetMonth = parseInt(monthStr, 10);
+
+    const balance = await BalanceService.calculateSummary({ month: targetMonth, year: targetYear });
     const allTransactions = await TransactionService.getAll();
     const recentTransactions = allTransactions.slice(0, 10);
 
@@ -43,13 +48,15 @@ export class DashboardService {
       }))
     );
 
-    // Top Expense Categories (including splits)
+    // Top Expense Categories (including splits, strictly filtered by selected month/competencia)
     const categories = await CategoryService.getAll(CategoryType.DESPESA);
     const categoryTotals = new Map<string, number>();
     let totalExpenseSum = 0;
 
     for (const tx of allTransactions) {
       if (tx.tipo !== 'DESPESA') continue;
+      if (tx.status === 'CANCELADO') continue;
+      if (!TransactionService.belongsToCompetencia(tx, targetAnoMes)) continue;
 
       if (tx.splits && tx.splits.length > 0) {
         for (const sp of tx.splits) {

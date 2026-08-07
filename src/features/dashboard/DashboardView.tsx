@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Button } from '../../components/ui/Button';
+import { MonthSelector } from '../../components/ui/MonthSelector';
 import { useFinancialData } from '../../hooks/useFinancialData';
 import { useApp } from '../../context/AppContext';
 import { DashboardService } from '../../services/financial/DashboardService';
 import { BudgetService } from '../../services/financial/BudgetService';
+import { TransactionService } from '../../services/financial/TransactionService';
 import type { DashboardSummary, BudgetCategory } from '../../types';
 import {
   Wallet,
@@ -24,7 +26,7 @@ import {
 
 export const DashboardView: React.FC = () => {
   const { transactions, refreshData } = useFinancialData();
-  const { openTransactionModal, openTransferModal } = useApp();
+  const { openTransactionModal, openTransferModal, selectedMonth, setSelectedMonth } = useApp();
 
   const [dashboardData, setDashboardData] = useState<DashboardSummary | null>(null);
   const [budgets, setBudgets] = useState<BudgetCategory[]>([]);
@@ -39,15 +41,13 @@ export const DashboardView: React.FC = () => {
   const [isTopCategoriesExpanded, setIsTopCategoriesExpanded] = useState(false);
   const [isBudgetsExpanded, setIsBudgetsExpanded] = useState(false);
 
-  const currentAnoMes = new Date().toISOString().slice(0, 7);
-
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
 
     Promise.all([
-      DashboardService.getDashboardData(),
-      BudgetService.getBudgetsByPeriod(currentAnoMes),
+      DashboardService.getDashboardData(selectedMonth),
+      BudgetService.getBudgetsByPeriod(selectedMonth),
     ])
       .then(([dashData, budgetData]) => {
         if (isMounted) {
@@ -64,7 +64,7 @@ export const DashboardView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentAnoMes, refreshData]);
+  }, [selectedMonth, refreshData]);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -90,7 +90,7 @@ export const DashboardView: React.FC = () => {
   // Total aplicado em investimentos durante o mês
   const totalInvestimentos = transactions
     .filter((tx) => {
-      if (!tx.data.startsWith(currentAnoMes)) return false;
+      if (!TransactionService.belongsToCompetencia(tx, selectedMonth)) return false;
       if (tx.status === 'CANCELADO') return false;
 
       const catName = (tx.category?.nome || '').toLowerCase();
@@ -129,7 +129,7 @@ export const DashboardView: React.FC = () => {
     .map((b) => {
       let spent = 0;
       for (const tx of transactions) {
-        if (tx.status === 'CANCELADO' || !tx.data.startsWith(currentAnoMes)) continue;
+        if (tx.status === 'CANCELADO' || !TransactionService.belongsToCompetencia(tx, selectedMonth)) continue;
         if (tx.tipo !== 'DESPESA') continue;
 
         if (tx.splits && tx.splits.length > 0) {
@@ -192,7 +192,8 @@ export const DashboardView: React.FC = () => {
           <h2 className="text-xl font-bold text-slate-100 tracking-tight">Resumo Executivo</h2>
           <p className="text-xs text-slate-400">Indicadores gerenciais e controle orçamentário do período</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+          <MonthSelector value={selectedMonth} onChange={setSelectedMonth} />
           <Button variant="outline" icon={<ArrowLeftRight className="w-4 h-4" />} onClick={openTransferModal}>
             Transferência
           </Button>
@@ -251,7 +252,7 @@ export const DashboardView: React.FC = () => {
           </div>
 
           {topCategories.length === 0 ? (
-            <p className="text-xs text-slate-500 py-12 text-center">Nenhuma despesa registrada no período.</p>
+            <p className="text-xs text-slate-500 py-12 text-center">Nenhuma despesa registrada neste período.</p>
           ) : (
             <div className="space-y-3.5 pt-2 transition-all duration-300">
               {visibleTopCategories.map((item) => (
